@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { all, one } from '@/lib/db';
 import { canAccessCourse, courseProgress, REQUIRED, CATEGORY_LABEL, CAT_TONE, FORMAT_LABEL } from '@/lib/progress';
 import { StateChip } from '@/components/ui';
@@ -13,7 +13,7 @@ import { learnerOfferings } from '@/lib/offerings';
 
 export default async function CoursePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   if (!(await canAccessCourse(u.id, params.id))) notFound();
   const c = await one<any>(`SELECT c.*, (SELECT string_agg(p.code, ', ') FROM course_products cp JOIN products p ON p.id=cp.product_id WHERE cp.course_id=c.id) AS codes
     FROM courses c WHERE c.id=$1`, [params.id]);

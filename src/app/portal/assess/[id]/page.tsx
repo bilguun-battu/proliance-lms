@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { AssessForm } from '@/components/AssessViews';
 
 export default async function Page(
@@ -6,6 +6,6 @@ export default async function Page(
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   return <AssessForm user={u} base="/portal/assess" id={params.id} sp={searchParams} />;
 }

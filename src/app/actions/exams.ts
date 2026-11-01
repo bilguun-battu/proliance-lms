@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { all, one, run, tx } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES, STAFF_ROLES, isStaff } from '@/lib/auth';
 import { canAccessCourse, logActivity } from '@/lib/progress';
 import { saveFormFile, IMAGE_TYPES, PDF_TYPES } from '@/lib/files';
 import {
@@ -23,7 +23,7 @@ const touch = (examId: string) => run('UPDATE exams SET updated_at=now() WHERE i
 
 /* ---------------- Шалгалтын материал: тохиргоо ---------------- */
 export async function saveExam(fd: FormData) {
-  const me = await requireUser('ADMIN');
+  const me = await requireUser(...STAFF_ROLES);
   const id = s(fd, 'exam_id');
   const back = id ? `/admin/exams/${id}/edit` : '/admin/exams/new';
   const [courseId, moduleKey] = s(fd, 'target').split('|');
@@ -58,7 +58,7 @@ export async function saveExam(fd: FormData) {
 }
 
 export async function deleteExam(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const used = await one('SELECT 1 FROM exam_runs WHERE exam_id=$1 LIMIT 1', [s(fd, 'exam_id')]);
   if (used) go(`/admin/exams/${s(fd, 'exam_id')}`, 'Энэ шалгалтыг авч байсан тул устгах боломжгүй. Оронд нь "Нуусан" төлөвт шилжүүлнэ үү.', true);
   await run('DELETE FROM exams WHERE id=$1', [s(fd, 'exam_id')]);
@@ -67,7 +67,7 @@ export async function deleteExam(fd: FormData) {
 
 // Хуулбарлах: тохиргоо, бүлэг, асуулт, онооны шатлалыг хуулж "Нуусан" төлөвтэй шинэ шалгалт үүсгэнэ
 export async function duplicateExam(fd: FormData) {
-  const me = await requireUser('ADMIN');
+  const me = await requireUser(...STAFF_ROLES);
   const src = s(fd, 'exam_id');
   const id = await tx(async c => {
     const e = await one<{ id: string }>(`INSERT INTO exams (course_id,module_key,title,duration_min,pass_score,shuffle,status,check_mode,show_result,
@@ -89,7 +89,7 @@ export async function duplicateExam(fd: FormData) {
 
 /* ---------------- Бүлэг ---------------- */
 export async function addSection(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const examId = s(fd, 'exam_id');
   await run('INSERT INTO exam_sections (exam_id,position,draw_count) VALUES ($1,(SELECT coalesce(max(position),0)+1 FROM exam_sections WHERE exam_id=$1),$2)',
     [examId, n(fd, 'draw_count', 0, 0, 500)]);
@@ -98,7 +98,7 @@ export async function addSection(fd: FormData) {
 }
 
 export async function updateSection(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const examId = s(fd, 'exam_id');
   await run('UPDATE exam_sections SET draw_count=$1, description=$2 WHERE id=$3 AND exam_id=$4',
     [n(fd, 'draw_count', 0, 0, 500), s(fd, 'description'), s(fd, 'section_id'), examId]);
@@ -107,7 +107,7 @@ export async function updateSection(fd: FormData) {
 }
 
 export async function deleteSection(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const examId = s(fd, 'exam_id');
   await tx(async c => {
     await run('DELETE FROM exam_sections WHERE id=$1 AND exam_id=$2', [s(fd, 'section_id'), examId], c);
@@ -119,7 +119,7 @@ export async function deleteSection(fd: FormData) {
 }
 
 export async function moveSection(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const examId = s(fd, 'exam_id');
   const cur = await one<any>('SELECT * FROM exam_sections WHERE id=$1 AND exam_id=$2', [s(fd, 'section_id'), examId]);
   const prev = cur && await one<any>('SELECT * FROM exam_sections WHERE exam_id=$1 AND position<$2 ORDER BY position DESC LIMIT 1', [examId, cur.position]);
@@ -132,7 +132,7 @@ export async function moveSection(fd: FormData) {
 
 /* ---------------- Асуулт ---------------- */
 export async function saveQuestion(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const examId = s(fd, 'exam_id'), qid = s(fd, 'question_id'), sectionId = s(fd, 'section_id');
   const back = `/admin/exams/${examId}/q/${qid || 'new'}${qid ? '' : `?section=${sectionId}`}`;
   const sec = await one('SELECT 1 FROM exam_sections WHERE id=$1 AND exam_id=$2', [sectionId, examId]);
@@ -176,7 +176,7 @@ export async function saveQuestion(fd: FormData) {
 }
 
 export async function deleteQuestion(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const examId = s(fd, 'exam_id');
   await run(`DELETE FROM exam_questions q USING exam_sections x WHERE q.id=$1 AND x.id=q.section_id AND x.exam_id=$2`, [s(fd, 'question_id'), examId]);
   await touch(examId);
@@ -185,7 +185,7 @@ export async function deleteQuestion(fd: FormData) {
 
 /* ---------------- Онооны шатлал ---------------- */
 export async function addBand(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const examId = s(fd, 'exam_id');
   const back = `/admin/exams/${examId}?tab=bands`;
   const min = Number(s(fd, 'min_points')), max = Number(s(fd, 'max_points'));
@@ -199,7 +199,7 @@ export async function addBand(fd: FormData) {
 }
 
 export async function deleteBand(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const examId = s(fd, 'exam_id');
   await run('DELETE FROM exam_bands WHERE id=$1 AND exam_id=$2', [s(fd, 'band_id'), examId]);
   go(`/admin/exams/${examId}?tab=bands`, 'Онооны шатлал устгагдлаа.');
@@ -207,8 +207,8 @@ export async function deleteBand(fd: FormData) {
 
 // Шалгалт эхлүүлэх, хаах эрх: админ эсвэл тухайн хичээлийн сургагч багш
 async function runManager(sessionId: string | null) {
-  const u = await requireUser('ADMIN', 'LEARNER', 'COORDINATOR');
-  if (u.role === 'ADMIN') return { u, live: '/admin/exams/live' };
+  const u = await requireUser('ADMIN', ...PORTAL_ROLES);
+  if (isStaff(u.role)) return { u, live: '/admin/exams/live' };
   const sess = sessionId ? await one<any>('SELECT offering_id FROM sessions WHERE id=$1', [sessionId]) : null;
   const { canManageOffering } = await import('@/lib/offerings');
   if (!sess?.offering_id || !(await canManageOffering(u, sess.offering_id))) redirect('/portal');
@@ -222,7 +222,7 @@ async function runSession(runId: string) {
 export async function openExamRun(fd: FormData) {
   const examId = s(fd, 'exam_id'), sessionId = s(fd, 'session_id') || null;
   const { u, live } = await runManager(sessionId);
-  const back = sessionId ? (u.role === 'ADMIN' ? '/admin/sessions' : '/portal/teach') : `/admin/exams/${examId}`;
+  const back = sessionId ? (isStaff(u.role) ? '/admin/sessions' : '/portal/teach') : `/admin/exams/${examId}`;
   const exam = await one<any>('SELECT * FROM exams WHERE id=$1', [examId]);
   if (!exam) go(back, 'Шалгалт олдсонгүй.', true);
   if (exam.status === 'HIDDEN') go(back, 'Шалгалт "Нуусан" төлөвтэй байна. Тохиргооноос идэвхжүүлнэ үү.', true);
@@ -254,7 +254,7 @@ export async function extendExamRun(fd: FormData) {
 
 /* ---------------- Багш гараар шалгах ---------------- */
 export async function reviewAttempt(fd: FormData) {
-  const me = await requireUser('ADMIN');
+  const me = await requireUser(...STAFF_ROLES);
   const id = s(fd, 'attempt_id');
   const a = await one<any>('SELECT * FROM exam_attempts WHERE id=$1', [id]);
   if (!a || !a.submitted_at) go('/admin/exams', 'Хариулт олдсонгүй.', true);
@@ -270,7 +270,7 @@ export async function reviewAttempt(fd: FormData) {
 
 /* ---------------- Оролцогч ---------------- */
 export async function startAttempt(token: string): Promise<{ error?: string }> {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const r = await runByToken(token);
   if (!r || !runIsOpen(r)) return { error: 'Шалгалт дууссан эсвэл холбоос идэвхгүй байна.' };
   if (!(await canAccessCourse(u.id, r.course_id))) return { error: 'Танд энэ шалгалтыг өгөх эрх алга. Proliance-тай холбогдоно уу.' };
@@ -288,7 +288,7 @@ export async function startAttempt(token: string): Promise<{ error?: string }> {
 }
 
 export async function submitAttempt(token: string, answers: Answer[]): Promise<{ error?: string }> {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const r = await runByToken(token);
   if (!r) return { error: 'Шалгалт олдсонгүй.' };
   const a = await latestAttempt(r.id, u.id);
@@ -303,7 +303,7 @@ export async function submitAttempt(token: string, answers: Answer[]): Promise<{
 
 // Хугацаа явж байхад хариултыг түр хадгална (утас унтарвал алдагдахгүй)
 export async function saveDraftAnswers(token: string, answers: Answer[]) {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const r = await runByToken(token);
   if (!r) return;
   await run(`UPDATE exam_attempts SET answers=$1 WHERE id=(SELECT id FROM exam_attempts WHERE run_id=$2 AND user_id=$3 ORDER BY attempt_no DESC LIMIT 1)

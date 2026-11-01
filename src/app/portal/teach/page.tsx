@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { all } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { listOfferings, offeringSessions, offCode } from '@/lib/offerings';
 import { TEACH_WHERE } from '@/lib/teach';
 import { Chip } from '@/components/ui';
@@ -12,7 +12,7 @@ import MonthCalendar from '@/components/MonthCalendar';
 // Сургагч багшийн самбар: заах хуваарь, ирц бүртгэх шаардлагатай хичээл, хуанли
 export default async function Teach(props: { searchParams: Promise<{ view?: string; m?: string; show?: string }> }) {
   const sp = await props.searchParams;
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const all_ = await listOfferings(`x.status='SCHEDULED' AND ${TEACH_WHERE(1)}`, [u.id], 'first_at ASC NULLS LAST');
   const upcoming = all_.filter(o => !o.last_at || new Date(o.last_at).getTime() >= Date.now() - 864e5);
   const past = all_.filter(o => !upcoming.includes(o)).reverse();

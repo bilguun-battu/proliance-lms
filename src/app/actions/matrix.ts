@@ -46,5 +46,31 @@ export async function saveMatrix(fd: FormData) {
       n++;
     }
   });
-  go(`Матриц хадгалагдлаа: ${n} заавал хамрагдах сургалт. Тухайн албан тушаалын ажилтнуудад автоматаар оноогдоно.`);
+  redirect(`/admin/matrix?view=grid&ok=${encodeURIComponent(`Матриц хадгалагдлаа: ${n} заавал хамрагдах сургалт. Тухайн албан тушаалын ажилтнуудад автоматаар оноогдоно.`)}`);
+}
+
+// Жагсаалтаар нэмэх: сонгосон албан тушаал бүрт сонгосон сургалт бүрийг оноох
+export async function addMatrixEntries(fd: FormData) {
+  await requireUser('ADMIN');
+  const posIds = fd.getAll('positions').map(String), courseIds = fd.getAll('courses').map(String);
+  if (!posIds.length || !courseIds.length) redirect(`/admin/matrix?view=list&err=${encodeURIComponent('Албан тушаал болон сургалтаа сонгоно уу.')}`);
+  const due = Math.max(1, Number(s(fd, 'due_days')) || 30);
+  const rec = Number(s(fd, 'recurrence')) > 0 ? Number(s(fd, 'recurrence')) : null;
+  const positions = await all<{ name: string }>('SELECT name FROM positions WHERE id = ANY($1)', [posIds]);
+  const courses = await all<{ id: string }>(`SELECT id FROM courses WHERE id = ANY($1) AND audience='INTERNAL'`, [courseIds]);
+  let n = 0;
+  await tx(async c => {
+    for (const p of positions) for (const co of courses) {
+      await run(`DELETE FROM assignments WHERE source='MATRIX' AND target='POSITION' AND target_value=$1 AND course_id=$2`, [p.name, co.id], c);
+      await run(`INSERT INTO assignments (course_id,target,target_value,due_days,recurrence_months,note,source) VALUES ($1,'POSITION',$2,$3,$4,'Сургалтын матриц','MATRIX')`, [co.id, p.name, due, rec], c);
+      n++;
+    }
+  });
+  redirect(`/admin/matrix?view=list&ok=${encodeURIComponent(`${n} мөр матрицад нэмэгдлээ. Тухайн албан тушаалын ажилтнуудад автоматаар оноогдоно.`)}`);
+}
+
+export async function deleteMatrixEntry(fd: FormData) {
+  await requireUser('ADMIN');
+  await run(`DELETE FROM assignments WHERE id=$1 AND source='MATRIX'`, [s(fd, 'id')]);
+  redirect(`/admin/matrix?view=list&ok=${encodeURIComponent('Матрицаас хасагдлаа.')}`);
 }

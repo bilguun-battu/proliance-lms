@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { all, one, run } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { canAccessCourse, canAssess, courseProgress, logActivity, recordCompletion, publishedVersion, versionModules } from '@/lib/progress';
 import { sendEmail } from '@/lib/notify';
 import { appUrl } from '@/lib/auth';
@@ -28,7 +28,7 @@ async function openRecord(userId: string, courseId: string, key: string) {
 }
 
 async function ensureLearner(courseId: string, key: string) {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   if (!(await canAccessCourse(u.id, courseId))) throw new Error('Эрхгүй');
   const p = await courseProgress(u.id, courseId);
   const mod = p?.modules.find(x => x.module_key === key);
@@ -94,7 +94,7 @@ async function notifyAssessors(courseId: string, subject: string) {
 /* ---------------- Үнэлэгч ---------------- */
 // OJT батлах эсвэл буцаах; VoC шалгуур бүрийг үнэлж Competent / NYC шийдвэрлэх
 export async function assessRecord(fd: FormData) {
-  const me = await requireUser('ADMIN', 'LEARNER', 'COORDINATOR');
+  const me = await requireUser('ADMIN', ...PORTAL_ROLES);
   const back = s(fd, 'back') || '/portal/assess';
   let r = s(fd, 'record_id') ? await one<any>('SELECT * FROM practical_records WHERE id=$1', [s(fd, 'record_id')]) : undefined;
   // Үнэлэгч өөрөө VoC эхлүүлж болно (суралцагч хүсээгүй ч)

@@ -1,3 +1,4 @@
+import { isStaff } from '@/lib/auth';
 import 'server-only';
 import { all, one, run } from './db';
 import { appUrl } from './auth';
@@ -179,7 +180,7 @@ export async function setResult(offeringId: string, userId: string, grade: 'PASS
 
 // Хуваарийг удирдах эрх: админ, хуваарийн үндсэн багш эсвэл аль нэг хичээлийн багш
 export async function canManageOffering(user: { id: string; role: string }, offeringId: string) {
-  if (user.role === 'ADMIN') return true;
+  if (isStaff(user.role)) return true;
   return !!(await one(`SELECT 1 FROM offerings o WHERE o.id=$1 AND (o.instructor_id=$2 OR EXISTS (SELECT 1 FROM sessions s WHERE s.offering_id=o.id AND s.instructor_id=$2))`, [offeringId, user.id]));
 }
 
@@ -215,7 +216,9 @@ export async function learnerOfferings(userId: string, courseId: string, moduleK
     if (moduleKey && !ss.some(s => s.module_key === moduleKey)) continue;
     const me = mine.find(m => m.offering_id === o.id);
     const my = me && me.status !== 'DROPPED' ? me.status as EnrStatus : null;
-    const pos = my === 'WAITLISTED' ? (await one<{ n: number }>(`SELECT count(*)::int AS n FROM offering_enrollments WHERE offering_id=$1 AND status='WAITLISTED' AND waitlisted_at <= $2`, [o.id, me.waitlisted_at]))!.n : null;
+    // Байрыг өгөгдлийн сан дотор тооцно (JS Date миллисекунд хүртэл тайрдаг тул харьцуулалт буруу болдог)
+    const pos = my === 'WAITLISTED' ? (await one<{ n: number }>(`SELECT count(*)::int AS n FROM offering_enrollments w WHERE w.offering_id=$1 AND w.status='WAITLISTED'
+       AND w.waitlisted_at <= (SELECT waitlisted_at FROM offering_enrollments WHERE offering_id=$1 AND user_id=$2)`, [o.id, userId]))!.n : null;
     out.push({
       id: o.id, code: offCode(o.num), location: o.location, instructor: o.instructor, notes: o.notes, link: my === 'ENROLLED' ? o.link : null,
       left: Math.max(0, o.max_capacity - o.taken), waitLeft: Math.max(0, o.waitlist_capacity - o.waiting),

@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { all, one, run, tx } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES, STAFF_ROLES } from '@/lib/auth';
 import { canAccessCourse, logActivity } from '@/lib/progress';
 import { newToken, runIsOpen } from '@/lib/exams';
 import { DEFAULT_QUESTIONS, evalRunByToken, templateQuestions, EvalAnswer } from '@/lib/evals';
@@ -14,7 +14,7 @@ const fmt = (v: string) => (['ELEARN', 'INPERSON', 'ONLINE'].includes(v) ? v : n
 
 /* ---------------- Маягт ---------------- */
 export async function createTemplate(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const name = s(fd, 'name');
   if (!name) go('/admin/evaluations', 'Маягтын нэрийг оруулна уу.', true);
   const id = await tx(async c => {
@@ -31,7 +31,7 @@ export async function createTemplate(fd: FormData) {
 }
 
 export async function updateTemplate(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const id = s(fd, 'template_id');
   await run('UPDATE eval_templates SET name=$1, format=$2, course_id=$3, anonymous=$4, intro=$5 WHERE id=$6',
     [s(fd, 'name'), fmt(s(fd, 'format')), s(fd, 'course_id') || null, fd.get('anonymous') === 'on', s(fd, 'intro'), id]);
@@ -39,7 +39,7 @@ export async function updateTemplate(fd: FormData) {
 }
 
 export async function copyTemplate(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const src = s(fd, 'template_id');
   const id = await tx(async c => {
     const t = await one<{ id: string }>(`INSERT INTO eval_templates (name,format,course_id,anonymous,intro)
@@ -51,13 +51,13 @@ export async function copyTemplate(fd: FormData) {
 }
 
 export async function deleteTemplate(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   await run('DELETE FROM eval_templates WHERE id=$1', [s(fd, 'template_id')]);
   go('/admin/evaluations', 'Маягт устгагдлаа.');
 }
 
 export async function addEvalQuestion(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const id = s(fd, 'template_id'), kind = s(fd, 'kind'), text = s(fd, 'text');
   const back = `/admin/evaluations/${id}`;
   if (!text || !['RATING', 'CHOICE', 'TEXT'].includes(kind)) go(back, 'Асуулт болон төрлийг оруулна уу.', true);
@@ -70,14 +70,14 @@ export async function addEvalQuestion(fd: FormData) {
 }
 
 export async function deleteEvalQuestion(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const id = s(fd, 'template_id');
   await run('DELETE FROM eval_questions WHERE id=$1 AND template_id=$2', [s(fd, 'question_id'), id]);
   go(`/admin/evaluations/${id}`, 'Асуулт устгагдлаа.');
 }
 
 export async function moveEvalQuestion(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const id = s(fd, 'template_id'), qid = s(fd, 'question_id'), dir = s(fd, 'dir');
   await tx(async c => {
     const qs = await all<{ id: string }>('SELECT id FROM eval_questions WHERE template_id=$1 ORDER BY position', [id], c);
@@ -91,7 +91,7 @@ export async function moveEvalQuestion(fd: FormData) {
 
 /* ---------------- Үнэлгээ эхлүүлэх / хаах ---------------- */
 export async function openEvalRun(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const templateId = s(fd, 'template_id'), sessionId = s(fd, 'session_id') || null;
   const back = sessionId ? '/admin/sessions' : `/admin/evaluations/${templateId}`;
   const n = (await one<{ n: number }>('SELECT count(*)::int AS n FROM eval_questions WHERE template_id=$1', [templateId]))!.n;
@@ -106,14 +106,14 @@ export async function openEvalRun(fd: FormData) {
 }
 
 export async function closeEvalRun(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const id = s(fd, 'run_id');
   await run('UPDATE eval_runs SET closed_at=now() WHERE id=$1 AND closed_at IS NULL', [id]);
   go(`/admin/evaluations/live/${id}`, 'Үнэлгээ хаагдлаа. Холбоос идэвхгүй боллоо.');
 }
 
 export async function extendEvalRun(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const id = s(fd, 'run_id');
   await run(`UPDATE eval_runs SET closes_at = greatest(closes_at, now()) + interval '15 minutes' WHERE id=$1 AND closed_at IS NULL`, [id]);
   go(`/admin/evaluations/live/${id}`, 'Хугацаа 15 минутаар сунгагдлаа.');
@@ -121,7 +121,7 @@ export async function extendEvalRun(fd: FormData) {
 
 /* ---------------- Оролцогч бөглөх ---------------- */
 export async function submitEvaluation(token: string, values: Record<string, number | string>): Promise<{ error?: string }> {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const r = await evalRunByToken(token);
   if (!r || !runIsOpen(r)) return { error: 'Үнэлгээ хаагдсан байна.' };
   if (r.course_id && !(await canAccessCourse(u.id, r.course_id))) return { error: 'Танд энэ хичээлийг үнэлэх эрх алга.' };

@@ -47,7 +47,7 @@ export default async function Draft(
                   <span className="fmt">{FORMAT_LABEL[m.format]}</span>
                   <span>{m.duration_min} мин</span>
                   {m.format === 'ELEARN' ? <>
-                    <span>{m.video_file ? 'Видео ✓' : 'Видеогүй'}</span>
+                    <span>{m.video_file ? 'Видео ✓' : m.video_url ? 'Видео холбоос ✓' : 'Видеогүй'}</span>
                     <span>{m.pdf_file ? 'Гарын авлага ✓' : 'Гарын авлагагүй'}</span>
                     <span>{m.qcount ? `${m.qcount} асуулт · тэнцэх ${m.pass_score}%` : 'Тестгүй'}</span>
                   </> : m.format === 'OJT' || m.format === 'VOC' ? <span>{m.icount} {m.format === 'OJT' ? 'даалгавар · хянагч баталгаажуулна' : 'шалгуур · үнэлэгч баталгаажуулна'}</span>

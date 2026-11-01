@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { all, run } from '@/lib/db';
 import { Chip } from '@/components/ui';
 import { fmtDate, fmtDateTime } from '@/lib/format';
 
 export default async function Notifications() {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const rows = await all<any>('SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100', [u.id]);
   await run('UPDATE notifications SET read_at=now() WHERE user_id=$1 AND read_at IS NULL', [u.id]);
   return (

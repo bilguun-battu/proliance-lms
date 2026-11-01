@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { all, one } from '@/lib/db';
 import { learnerCourseIds, courseProgress, CATEGORY_LABEL, CAT_TONE, REQUIRED } from '@/lib/progress';
 import { complianceRows, COMP_LABEL, COMPLIANT_SET } from '@/lib/compliance';
@@ -8,7 +8,7 @@ import CourseCover from '@/components/CourseCover';
 
 export default async function MyCourses(props: { searchParams: Promise<{ f?: string }> }) {
   const sp = await props.searchParams;
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const org = await one<any>('SELECT name FROM orgs WHERE id=$1', [u.orgId]);
   const ids = await learnerCourseIds(u.id);
   const courses = await all<any>(`

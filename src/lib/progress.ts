@@ -1,10 +1,11 @@
+import { isStaff } from '@/lib/auth';
 import 'server-only';
 import { all, one, run } from './db';
 import { APPLIES_SQL, recurrenceFor } from './assign';
 
 export type ModuleRow = {
   id: string; module_key: string; position: number; title: string; description: string;
-  duration_min: number; video_file: string | null; pdf_file: string | null; pass_score: number;
+  duration_min: number; video_file: string | null; video_url: string | null; pdf_file: string | null; pass_score: number;
   mver: number; added_in: number; change: 'NEW' | 'CHANGED' | 'SAME'; mandatory: boolean; qcount: number;
   format: 'ELEARN' | 'INPERSON' | 'ONLINE' | 'OJT' | 'VOC';
 };
@@ -101,31 +102,43 @@ export async function logActivity(userId: string, courseId: string | null, modul
   await run('INSERT INTO activity_log (user_id,course_id,module_key,action,detail) VALUES ($1,$2,$3,$4,$5)', [userId, courseId, moduleKey, action, detail ?? null]);
 }
 
-export const WATCH_THRESHOLD = 0.9;
+// Цахим хичээлийн материалыг 100% үзэж байж дууссанд тооцно.
+// Видеоны төгсгөлд хэдэн секундын зөрүү (тоглуулагчийн нарийвчлал) зөвшөөрнө.
+export const VIDEO_TOLERANCE_S = 2;
+export const hasVideo = (m: { video_file: string | null; video_url?: string | null }) => !!(m.video_file || m.video_url);
 
-// Модуль дуусгах нөхцөл: видео 90%+ үзсэн (байвал), тестэд тэнцсэн (байвал)
+// Модуль дуусгах нөхцөл: видеог эхнээс нь дуустал үзсэн, PDF-ийн бүх хуудсыг үзсэн, тестэд тэнцсэн (тус бүр байвал)
 export async function requirementStatus(userId: string, courseId: string, m: ModuleRow) {
-  const vp = m.video_file
-    ? await one<{ watched_s: number; duration_s: number; position_s: number }>(
-        'SELECT watched_s, duration_s, position_s FROM video_progress WHERE user_id=$1 AND course_id=$2 AND module_key=$3 AND mver=$4',
-        [userId, courseId, m.module_key, m.mver])
+  const key = [userId, courseId, m.module_key, m.mver];
+  const vp = hasVideo(m)
+    ? await one<{ watched_s: number; duration_s: number; position_s: number; max_s: number }>(
+        'SELECT watched_s, duration_s, position_s, max_s FROM video_progress WHERE user_id=$1 AND course_id=$2 AND module_key=$3 AND mver=$4', key)
     : undefined;
-  const videoPct = vp && vp.duration_s > 0 ? Math.min(1, vp.watched_s / vp.duration_s) : 0;
-  const videoOk = !m.video_file || videoPct >= WATCH_THRESHOLD;
+  const dur = vp?.duration_s ?? 0, reached = vp?.max_s ?? 0;
+  const videoOk = !hasVideo(m) || (dur > 0 && reached >= dur - VIDEO_TOLERANCE_S);
+  const videoPct = !hasVideo(m) ? 1 : videoOk ? 1 : dur > 0 ? Math.min(0.99, reached / dur) : 0;
+  const needPdf = !!m.pdf_file && m.format === 'ELEARN';
+  const pp = needPdf
+    ? await one<{ seen: number; total: number }>(
+        'SELECT cardinality(pages) AS seen, total FROM pdf_progress WHERE user_id=$1 AND course_id=$2 AND module_key=$3 AND mver=$4', key)
+    : undefined;
+  const pdfOk = !needPdf || (!!pp && pp.total > 0 && pp.seen >= pp.total);
+  const pdfPct = !needPdf ? 1 : pp && pp.total > 0 ? Math.min(1, pp.seen / pp.total) : 0;
   const best = m.qcount
     ? await one<{ score: number }>(
-        'SELECT max(score)::int AS score FROM quiz_attempts WHERE user_id=$1 AND course_id=$2 AND module_key=$3 AND mver=$4 AND passed',
-        [userId, courseId, m.module_key, m.mver])
+        'SELECT max(score)::int AS score FROM quiz_attempts WHERE user_id=$1 AND course_id=$2 AND module_key=$3 AND mver=$4 AND passed', key)
     : undefined;
   const quizOk = !m.qcount || (best?.score ?? null) !== null;
-  return { videoPct, videoOk, quizOk, quizScore: best?.score ?? null, position: vp?.position_s ?? 0, manual: !m.video_file && !m.qcount };
+  return {
+    videoPct, videoOk, maxS: reached, pdfOk, pdfPct, pdfSeen: pp?.seen ?? 0, pdfTotal: pp?.total ?? 0,
+    materialOk: videoOk && pdfOk, quizOk, quizScore: best?.score ?? null, position: vp?.position_s ?? 0,
+  };
 }
 
-export async function tryComplete(userId: string, courseId: string, m: ModuleRow, manual = false) {
+export async function tryComplete(userId: string, courseId: string, m: ModuleRow) {
   if (m.format !== 'ELEARN') return false; // биечлэн/онлайн хичээл зөвхөн ирцээр дуусна
   const r = await requirementStatus(userId, courseId, m);
-  if (r.manual && !manual) return false;
-  if (!r.videoOk || !r.quizOk) return false;
+  if (!r.materialOk || !r.quizOk) return false;
   if (await recordCompletion(userId, courseId, m.module_key, m.mver, r.quizScore)) await logActivity(userId, courseId, m.module_key, 'COMPLETE', m.title);
   return true;
 }
@@ -185,6 +198,6 @@ async function grantTrainerIfDone(userId: string, courseId: string) {
 
 // Тухайн сургалтыг заах, OJT/VoC үнэлэх эрхтэй эсэх
 export async function canAssess(userId: string, role: string, courseId: string) {
-  if (role === 'ADMIN') return true;
+  if (isStaff(role)) return true;
   return !!(await one('SELECT 1 FROM trainer_quals WHERE user_id=$1 AND course_id=$2', [userId, courseId]));
 }

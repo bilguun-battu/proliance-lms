@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { all } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, STAFF_ROLES } from '@/lib/auth';
 import { getOffering, offeringSessions } from '@/lib/offerings';
 import { updateOffering, updateSessionTime, cancelOfferingAction } from '@/app/actions/offerings';
 import { Flash } from '@/components/ui';
@@ -11,13 +11,13 @@ import InstructorPick from '@/components/InstructorPick';
 import Submit from '@/components/Submit';
 
 export default async function OfferingPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; err?: string }> }) {
-  const me = await requireUser('ADMIN');
+  const me = await requireUser(...STAFF_ROLES);
   const { id } = await props.params;
   const sp = await props.searchParams;
   const o = await getOffering(id);
   if (!o) notFound();
   const sessions = await offeringSessions([id]);
-  const trainers = await all<any>(`SELECT u.id, u.name FROM trainer_quals q JOIN users u ON u.id=q.user_id WHERE q.course_id=$1 AND u.active ORDER BY u.name`, [o.course_id]);
+  const trainers = await all<any>(`SELECT DISTINCT u.id, u.name FROM users u WHERE u.active AND (u.role IN ('TRAINER','TRAINING_ADMIN') OR EXISTS (SELECT 1 FROM trainer_quals q WHERE q.user_id=u.id AND q.course_id=$1)) ORDER BY u.name`, [o.course_id]);
   const started = sessions.some(s => new Date(s.starts_at).getTime() <= Date.now());
   return (
     <>

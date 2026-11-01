@@ -9,7 +9,10 @@ export function proxy(req: NextRequest) {
     url.search = next.startsWith('/exam/') || next.startsWith('/eval/') ? `?next=${encodeURIComponent(next)}` : '';
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  // Хуудасны замыг layout-д дамжуулна (сургалтын админд нээлттэй хэсгийг шалгахад)
+  const headers = new Headers(req.headers);
+  headers.set('x-pathname', req.nextUrl.pathname);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = { matcher: ['/admin/:path*', '/portal/:path*', '/org/:path*', '/exam/:path*', '/eval/:path*'] };

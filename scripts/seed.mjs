@@ -198,14 +198,15 @@ for (const [name, format, online] of [['Биечлэн хичээлийн үнэ
 // ===== Дотоод сургалт: Proliance-ийн ажилтнууд =====
 const io = (await db.query(`INSERT INTO orgs (name,contact_name,is_internal) VALUES ('Пролианс ХХК','Хүний нөөц',true) RETURNING id`)).rows[0];
 const staff = {};
-for (const [email, name, pos, dept, daysAgo] of [
-  ['ganbaatar@proliance.mn', 'О. Ганбаатар', 'Ахлах инженер', 'Инженерийн алба', 400],
+for (const [email, name, pos, dept, daysAgo, role = 'LEARNER'] of [
+  ['ganbaatar@proliance.mn', 'О. Ганбаатар', 'Ахлах инженер', 'Инженерийн алба', 400, 'TRAINER'],
   ['munkhzul@proliance.mn', 'Э. Мөнхзул', 'Борлуулалтын менежер', 'Борлуулалт', 200],
   ['baterdene@proliance.mn', 'Т. Бат-Эрдэнэ', 'Агуулахын ажилтан', 'Агуулах', 60],
   ['tuguldur@proliance.mn', 'Б. Төгөлдөр', 'Инженер', 'Инженерийн алба', 20],
+  ['sarnai@proliance.mn', 'Г. Сарнай', 'Сургалтын менежер', 'Хүний нөөц', 300, 'TRAINING_ADMIN'],
 ]) {
-  staff[email] = (await db.query(`INSERT INTO users (email,name,role,position,department,org_id,password_hash,created_at,position_since) VALUES ($1,$2,'LEARNER',$3,$4,$5,$6, now() - ($7 || ' days')::interval, now() - ($7 || ' days')::interval) RETURNING id`,
-    [email, name, pos, dept, io.id, demoHash, String(daysAgo)])).rows[0].id;
+  staff[email] = (await db.query(`INSERT INTO users (email,name,role,position,department,org_id,password_hash,created_at,position_since) VALUES ($1,$2,$8,$3,$4,$5,$6, now() - ($7 || ' days')::interval, now() - ($7 || ' days')::interval) RETURNING id`,
+    [email, name, pos, dept, io.id, demoHash, String(daysAgo), role])).rows[0].id;
 }
 async function internalCourse(title, desc, modules, category = 'ELEARN') {
   const c = (await db.query(`INSERT INTO courses (title,description,audience,category,for_customers,for_internal) VALUES ($1,$2,'INTERNAL',$3,false,true) RETURNING id`, [title, desc, category])).rows[0];

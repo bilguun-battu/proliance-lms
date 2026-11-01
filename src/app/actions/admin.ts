@@ -9,11 +9,13 @@ import { sendEmail, sendSms, notifyNewVersion } from '@/lib/notify';
 import { completeByAttendance, logActivity, CATEGORIES, CATEGORY_FORMATS, CATEGORY_LABEL, FORMAT_LABEL } from '@/lib/progress';
 import { fmtSession } from '@/lib/format';
 import { setUserPosition, startPositionHistory } from '@/lib/positions';
+import { parseVideoUrl } from '@/lib/video';
 
 const s = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim();
 const fmt = (v: string) => (['INPERSON', 'ONLINE', 'OJT', 'VOC'].includes(v) ? v : 'ELEARN');
 const aud = (v: string) => (v === 'INTERNAL' ? 'INTERNAL' : 'CUSTOMER');
-const cat = (v: string, audience = 'INTERNAL') => (CATEGORIES.includes(v) && (audience === 'INTERNAL' || !['OJT', 'VOC', 'TTT'].includes(v)) ? v : 'ELEARN');
+// Харилцагчийн болон дотоод сургалтад ижил төрлүүд (OJT, VoC, TtT орно) хэрэглэнэ
+const cat = (v: string) => (CATEGORIES.includes(v) ? v : 'ELEARN');
 const go = (path: string, msg: string, err = false): never =>
   redirect(`${path}${path.includes('?') ? '&' : '?'}${err ? 'err' : 'ok'}=${encodeURIComponent(msg)}`);
 
@@ -29,6 +31,36 @@ export async function saveProduct(fd: FormData) {
     go('/admin/products', `"${code}" код аль хэдийн бүртгэлтэй байна.`, true);
   }
   go('/admin/products', id ? 'Бүтээгдэхүүн шинэчлэгдлээ.' : 'Бүтээгдэхүүн нэмэгдлээ.');
+}
+
+// Бүтээгдэхүүний хуудаснаас холбогдох сургалтуудыг нэмэх; хүсвэл бүтээгдэхүүнтэй байгууллагуудад заавал хамрагдах болгож оноох
+export async function linkProductCourses(fd: FormData) {
+  await requireUser('ADMIN');
+  const pid = s(fd, 'product_id');
+  const back = `/admin/products/${pid}`;
+  const ids = fd.getAll('courses').map(String).filter(Boolean);
+  if (!ids.length) go(back, 'Сургалт сонгоно уу.', true);
+  const mandatory = fd.get('mandatory') === 'on';
+  let assigned = 0;
+  await tx(async c => {
+    for (const id of ids) await run('INSERT INTO course_products VALUES ($1,$2) ON CONFLICT DO NOTHING', [id, pid], c);
+    if (!mandatory) return;
+    const orgs = await all<{ org_id: string }>(`SELECT op.org_id FROM org_products op JOIN orgs o ON o.id=op.org_id WHERE op.product_id=$1 AND NOT coalesce(o.is_internal,false)`, [pid], c);
+    const custIds = (await all<{ id: string }>(`SELECT id FROM courses WHERE id = ANY($1) AND audience='CUSTOMER'`, [ids], c)).map(r => r.id);
+    for (const cid of custIds) for (const o of orgs) {
+      if (await one(`SELECT 1 FROM assignments WHERE course_id=$1 AND target='ORG' AND target_value=$2`, [cid, o.org_id], c)) continue;
+      await run(`INSERT INTO assignments (course_id,target,target_value,due_days,recurrence_months,note) VALUES ($1,'ORG',$2,$3,$4,$5)`,
+        [cid, o.org_id, Number(s(fd, 'due_days')) || 30, Number(s(fd, 'recurrence_months')) || null, `Бүтээгдэхүүн: ${s(fd, 'code')}`], c);
+      assigned++;
+    }
+  });
+  go(back, `${ids.length} сургалт холбогдлоо.` + (mandatory ? ` ${assigned} байгууллагад заавал хамрагдах сургалтаар оноогдлоо.` : ''));
+}
+
+export async function unlinkProductCourse(fd: FormData) {
+  await requireUser('ADMIN');
+  await run('DELETE FROM course_products WHERE product_id=$1 AND course_id=$2', [s(fd, 'product_id'), s(fd, 'course_id')]);
+  go(`/admin/products/${s(fd, 'product_id')}`, 'Сургалт бүтээгдэхүүнээс хасагдлаа.');
 }
 
 export async function deleteProduct(fd: FormData) {
@@ -70,12 +102,22 @@ async function invite(userId: string, email: string, name: string) {
     `Сайн байна уу, ${name}.\n\nТанд Proliance-ийн цахим сургалтын системд нэвтрэх эрх олгогдлоо.\nДоорх холбоосоор нууц үгээ тохируулна уу (72 цаг хүчинтэй):\n${appUrl(`/reset/${token}`)}\n\nНэвтрэх хаяг: ${appUrl('/login')}`);
 }
 
+// Сургагч, Сургалтын админ эрх зөвхөн Proliance-ийн (дотоод) ажилтанд олгогдоно
+async function checkRole(role: string, orgId: string | null, back: string) {
+  if (!['ADMIN', 'TRAINING_ADMIN', 'TRAINER', 'COORDINATOR', 'LEARNER'].includes(role)) go(back, 'Эрх буруу байна.', true);
+  if (role === 'TRAINER' || role === 'TRAINING_ADMIN') {
+    const o = orgId ? await one<{ is_internal: boolean }>('SELECT is_internal FROM orgs WHERE id=$1', [orgId]) : null;
+    if (!o?.is_internal) go(back, 'Сургагч болон Сургалтын админ эрхийг зөвхөн Proliance-ийн ажилтанд олгоно.', true);
+  }
+}
+
 async function addUser(fd: FormData, forcedOrg?: string, back = '/admin/learners') {
   const email = s(fd, 'email').toLowerCase(), name = s(fd, 'name');
   const role = forcedOrg ? 'LEARNER' : (s(fd, 'role') || 'LEARNER');
   const orgId = forcedOrg ?? (s(fd, 'org_id') || null);
   if (!email || !name) go(back, 'Нэр болон имэйлийг оруулна уу.', true);
   if (role !== 'ADMIN' && !orgId) go(back, 'Байгууллагаа сонгоно уу.', true);
+  await checkRole(role, orgId, back);
   const exists = await one('SELECT id FROM users WHERE email=$1', [email]);
   if (exists) go(back, `${email} имэйл аль хэдийн бүртгэлтэй байна.`, true);
   const u = await one<{ id: string }>(
@@ -100,6 +142,7 @@ export async function coordinatorAddLearner(fd: FormData) {
 export async function updateUser(fd: FormData) {
   await requireUser('ADMIN');
   const id = s(fd, 'id');
+  await checkRole(s(fd, 'role'), s(fd, 'org_id') || null, s(fd, 'back') || '/admin/learners');
   await run('UPDATE users SET name=$1,phone=$2,role=$3,org_id=$4 WHERE id=$5',
     [s(fd, 'name'), s(fd, 'phone') || null, s(fd, 'role'), s(fd, 'org_id') || null, id]);
   const moved = await setUserPosition(id, s(fd, 'position') || null, s(fd, 'department') || null);
@@ -159,8 +202,8 @@ export async function createCourse(fd: FormData) {
   const id = await tx(async c => {
     const a = aud(s(fd, 'audience'));
     const course = await one<{ id: string }>('INSERT INTO courses (title,description,due_days,sequential,audience,category) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-      [title, s(fd, 'description'), Number(s(fd, 'due_days')) || 30, fd.get('sequential') === 'on', a, cat(s(fd, 'category'), a)], c);
-    if (a === 'CUSTOMER') for (const p of fd.getAll('products')) await run('INSERT INTO course_products VALUES ($1,$2)', [course!.id, String(p)], c);
+      [title, s(fd, 'description'), Number(s(fd, 'due_days')) || 30, fd.get('sequential') === 'on', a, cat(s(fd, 'category'))], c);
+    for (const p of fd.getAll('products')) await run('INSERT INTO course_products VALUES ($1,$2)', [course!.id, String(p)], c);
     for (const t of fd.getAll('targets')) await run('INSERT INTO course_trainer_targets VALUES ($1,$2) ON CONFLICT DO NOTHING', [course!.id, String(t)], c);
     if (typeof cover === 'string') await run('UPDATE courses SET cover_file=$1 WHERE id=$2', [cover, course!.id], c);
     await run(`INSERT INTO course_versions (course_id,number,status) VALUES ($1,1,'DRAFT')`, [course!.id], c);
@@ -181,7 +224,7 @@ export async function updateCourse(fd: FormData) {
     await run('UPDATE courses SET title=$1,description=$2,due_days=$3,sequential=$4,audience=$5,category=$6 WHERE id=$7',
       [s(fd, 'title'), s(fd, 'description'), Number(s(fd, 'due_days')) || 30, fd.get('sequential') === 'on', a, cat(s(fd, 'category')), id], c);
     await run('DELETE FROM course_products WHERE course_id=$1', [id], c);
-    if (a === 'CUSTOMER') for (const p of fd.getAll('products')) await run('INSERT INTO course_products VALUES ($1,$2)', [id, String(p)], c);
+    for (const p of fd.getAll('products')) await run('INSERT INTO course_products VALUES ($1,$2)', [id, String(p)], c);
     await run('DELETE FROM course_trainer_targets WHERE course_id=$1', [id], c);
     for (const t of fd.getAll('targets')) if (String(t) !== id) await run('INSERT INTO course_trainer_targets VALUES ($1,$2) ON CONFLICT DO NOTHING', [id, String(t)], c);
   });
@@ -201,9 +244,9 @@ export async function startDraft(fd: FormData) {
     const mods = await all<any>('SELECT * FROM modules WHERE version_id=$1 ORDER BY position', [pub.id], c);
     for (const m of mods) {
       const nm = await one<{ id: string }>(
-        `INSERT INTO modules (version_id,module_key,position,title,description,duration_min,video_file,pdf_file,pass_score,mver,added_in,change,mandatory,format)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'SAME',$12,$13) RETURNING id`,
-        [draft!.id, m.module_key, m.position, m.title, m.description, m.duration_min, m.video_file, m.pdf_file, m.pass_score, m.mver, m.added_in, m.mandatory, m.format], c);
+        `INSERT INTO modules (version_id,module_key,position,title,description,duration_min,video_file,pdf_file,pass_score,mver,added_in,change,mandatory,format,video_url)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'SAME',$12,$13,$14) RETURNING id`,
+        [draft!.id, m.module_key, m.position, m.title, m.description, m.duration_min, m.video_file, m.pdf_file, m.pass_score, m.mver, m.added_in, m.mandatory, m.format, m.video_url], c);
       await run('INSERT INTO questions (module_id,position,text,options,correct_index) SELECT $1,position,text,options,correct_index FROM questions WHERE module_id=$2', [nm!.id, m.id], c);
       await run('INSERT INTO module_items (module_id,position,text) SELECT $1,position,text FROM module_items WHERE module_id=$2', [nm!.id, m.id], c);
     }
@@ -312,9 +355,21 @@ export async function removeModuleFile(fd: FormData) {
   await requireUser('ADMIN');
   const courseId = s(fd, 'course_id'), id = s(fd, 'module_id'), kind = s(fd, 'kind');
   await draftOf(courseId);
-  const col = kind === 'pdf' ? 'pdf_file' : 'video_file';
+  const col = kind === 'pdf' ? 'pdf_file' : kind === 'url' ? 'video_url' : 'video_file';
   await run(`UPDATE modules SET ${col}=NULL, change = CASE WHEN change='SAME' THEN 'CHANGED' ELSE change END WHERE id=$1`, [id]);
-  go(`/admin/courses/${courseId}/draft/${id}`, 'Файл хасагдлаа.');
+  go(`/admin/courses/${courseId}/draft/${id}`, kind === 'url' ? 'Видео холбоос хасагдлаа.' : 'Файл хасагдлаа.');
+}
+
+// YouTube эсвэл өөр сервер дээрх видеог холбоосоор тавих (байршуулсан видео файлыг орлоно)
+export async function setModuleVideoUrl(fd: FormData) {
+  await requireUser('ADMIN');
+  const courseId = s(fd, 'course_id'), id = s(fd, 'module_id');
+  await draftOf(courseId);
+  const back = `/admin/courses/${courseId}/draft/${id}`;
+  const url = s(fd, 'video_url');
+  if (!parseVideoUrl(url)) go(back, 'Видео холбоос буруу байна. YouTube хаяг эсвэл https://… .mp4 / .webm файлын шууд холбоос оруулна уу.', true);
+  await run(`UPDATE modules SET video_url=$1, video_file=NULL, change = CASE WHEN change='SAME' THEN 'CHANGED' ELSE change END WHERE id=$2`, [url, id]);
+  go(back, 'Видео холбоос хадгалагдлаа.');
 }
 
 export async function addQuestion(fd: FormData) {
@@ -349,7 +404,7 @@ export async function publishDraft(fd: FormData) {
   const d = await draftOf(courseId);
   const mods = await all<any>('SELECT * FROM modules WHERE version_id=$1 ORDER BY position', [d.id]);
   if (!mods.length) go(back, 'Хувилбарт дор хаяж нэг модуль байх ёстой.', true);
-  const empty = mods.filter(m => m.format === 'ELEARN' && !m.video_file && !m.pdf_file);
+  const empty = mods.filter(m => m.format === 'ELEARN' && !m.video_file && !m.video_url && !m.pdf_file);
   if (empty.length) go(back, `Видео эсвэл гарын авлагагүй цахим модуль байна: ${empty.map(m => m.title).join(', ')}`, true);
   const noItems = [];
   for (const m of mods.filter(x => x.format === 'OJT' || x.format === 'VOC')) {
@@ -383,13 +438,15 @@ export async function publishDraft(fd: FormData) {
 
 /* ---------------- Заавал хамрагдах сургалтын оноолт ---------------- */
 export async function createAssignment(fd: FormData) {
-  await requireUser('ADMIN');
+  const me = await requireUser('ADMIN', 'TRAINING_ADMIN');
   const target = s(fd, 'target');
   const value = target === 'DEPARTMENT' ? s(fd, 'department') : target === 'POSITION' ? s(fd, 'position') : target === 'ORG' ? s(fd, 'org_id') : target === 'USER' ? s(fd, 'user_id') : null;
-  if (!s(fd, 'course_id') || !['ALL_INTERNAL', 'DEPARTMENT', 'POSITION', 'ORG', 'USER'].includes(target)) go('/admin/compliance', 'Сургалт болон хамрах хүрээг сонгоно уу.', true);
-  if (target !== 'ALL_INTERNAL' && !value) go('/admin/compliance', 'Хэнд оноохыг сонгоно уу.', true);
+  if (!s(fd, 'course_id') || !['ALL_INTERNAL', 'DEPARTMENT', 'POSITION', 'ORG', 'USER'].includes(target)) go('/admin/assignments', 'Сургалт болон хамрах хүрээг сонгоно уу.', true);
+  if (target !== 'ALL_INTERNAL' && !value) go('/admin/assignments', 'Хэнд оноохыг сонгоно уу.', true);
   const course = await one<{ audience: string }>('SELECT audience FROM courses WHERE id=$1', [s(fd, 'course_id')]);
-  const back = `/admin/compliance?aud=${course?.audience === 'INTERNAL' ? 'internal' : 'customer'}`;
+  const back = `/admin/assignments?aud=${course?.audience === 'INTERNAL' ? 'internal' : 'customer'}`;
+  // Сургалтын админ хамтрагч байгууллагын (харилцагчийн) заавал сургалтыг л ононо
+  if (me.role === 'TRAINING_ADMIN' && course?.audience !== 'CUSTOMER') go('/admin/assignments?aud=customer', 'Сургалтын админ зөвхөн хамтрагч байгууллагын сургалтыг ононо.', true);
   if (course?.audience === 'INTERNAL' && target === 'ORG') go(back, 'Дотоод сургалтыг харилцагч байгууллагад оноох боломжгүй.', true);
   if (course?.audience === 'CUSTOMER' && (target === 'ALL_INTERNAL' || target === 'DEPARTMENT')) go(back, 'Харилцагчийн сургалтыг Proliance-ийн ажилтанд оноох боломжгүй.', true);
   const rec = Number(s(fd, 'recurrence_months')) || null;
@@ -399,9 +456,10 @@ export async function createAssignment(fd: FormData) {
 }
 
 export async function deleteAssignment(fd: FormData) {
-  await requireUser('ADMIN');
-  await run('DELETE FROM assignments WHERE id=$1', [s(fd, 'id')]);
-  go(`/admin/compliance?aud=${s(fd, 'aud') || 'internal'}`, 'Оноолт устгагдлаа.');
+  const me = await requireUser('ADMIN', 'TRAINING_ADMIN');
+  if (me.role === 'TRAINING_ADMIN') await run(`DELETE FROM assignments a USING courses c WHERE a.id=$1 AND c.id=a.course_id AND c.audience='CUSTOMER'`, [s(fd, 'id')]);
+  else await run('DELETE FROM assignments WHERE id=$1', [s(fd, 'id')]);
+  go(`/admin/assignments?aud=${s(fd, 'aud') || 'internal'}`, 'Оноолт устгагдлаа.');
 }
 
 /* ---------------- OJT даалгавар / VoC шалгуур ---------------- */

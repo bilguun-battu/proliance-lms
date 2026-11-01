@@ -45,7 +45,7 @@ export default async function NewOffering(props: { searchParams: Promise<{ ok?: 
   const mods = await ilt(sp.course);
   const c = await one<any>('SELECT id, title, audience, category FROM courses WHERE id=$1', [sp.course]);
   if (!c) return <p>Сургалт олдсонгүй.</p>;
-  const trainers = await all<any>(`SELECT u.id, u.name FROM trainer_quals q JOIN users u ON u.id=q.user_id WHERE q.course_id=$1 AND u.active ORDER BY u.name`, [c.id]);
+  const trainers = await all<any>(`SELECT DISTINCT u.id, u.name FROM users u WHERE u.active AND (u.role IN ('TRAINER','TRAINING_ADMIN') OR EXISTS (SELECT 1 FROM trainer_quals q WHERE q.user_id=u.id AND q.course_id=$1)) ORDER BY u.name`, [c.id]);
   const hasOnline = mods.some(m => m.format === 'ONLINE');
   const aud = c.audience === 'INTERNAL' ? 'internal' : 'customer';
   return (

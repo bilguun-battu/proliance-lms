@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { all, one } from '@/lib/db';
 import { canAccessCourse, courseProgress, requirementStatus, logActivity, FORMAT_LABEL } from '@/lib/progress';
 import { fmtSession } from '@/lib/format';
@@ -9,7 +9,8 @@ import { learnerOfferings } from '@/lib/offerings';
 import { StateChip } from '@/components/ui';
 import VideoPlayer from '@/components/VideoPlayer';
 import Quiz from '@/components/Quiz';
-import MarkRead from '@/components/MarkRead';
+import PdfViewer from '@/components/PdfViewer';
+import { parseVideoUrl } from '@/lib/video';
 import PracticalLearner from '@/components/PracticalLearner';
 import { Flash } from '@/components/ui';
 import LearnFrame from '@/components/LearnFrame';
@@ -22,7 +23,7 @@ export default async function ModulePage(
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   if (!(await canAccessCourse(u.id, params.id))) notFound();
   const c = await one<any>('SELECT id, title FROM courses WHERE id=$1', [params.id]);
   const p = (await courseProgress(u.id, params.id))!;
@@ -34,6 +35,7 @@ export default async function ModulePage(
   const recent = await one('SELECT 1 FROM activity_log WHERE user_id=$1 AND course_id=$2 AND module_key=$3 AND action=$4 AND at > now() - interval \'30 minutes\'', [u.id, c.id, m.module_key, 'OPEN']);
   if (!recent) await logActivity(u.id, c.id, m.module_key, 'OPEN', m.title);
   const r = await requirementStatus(u.id, c.id, m);
+  const video = m.video_file ? { kind: 'direct' as const, url: `${base}/api/files/${m.video_file}` } : parseVideoUrl(m.video_url);
   const qs = m.qcount ? await all<any>('SELECT text, options FROM questions WHERE module_id=$1 ORDER BY position', [m.id]) : [];
   const next = p.modules[idx + 1];
   const practical = m.format === 'OJT' || m.format === 'VOC';
@@ -62,16 +64,15 @@ export default async function ModulePage(
         {(m.state !== 'done' || offerings.some(o => o.my)) && <OfferingPicker offerings={offerings} />}
         {history.length > 0 && <div className="small muted">Өмнөх ирц: {history.map(h => `${fmtSession(h.starts_at)} — ${h.status === 'ATTENDED' ? 'ирсэн' : h.status === 'PARTIAL' ? 'хэсэгчлэн ирсэн' : h.status === 'ABSENT' ? 'ирээгүй' : 'бүртгүүлсэн'}`).join('; ')}</div>}
       </section>}
-      {m.video_file && <section className="panel"><VideoPlayer src={`${base}/api/files/${m.video_file}`} courseId={c.id} moduleKey={m.module_key} start={r.position} initialPct={r.videoPct} /></section>}
+      {video && <section className="panel"><VideoPlayer source={video} courseId={c.id} moduleKey={m.module_key} start={r.position} maxS={r.maxS} initialPct={r.videoPct} /></section>}
       {m.pdf_file && <section className="panel">
         <h2>{m.format === 'ELEARN' ? 'Гарын авлага' : practical ? 'Ажлын заавар' : 'Хичээлийн материал'}</h2>
-        <div className="acts" style={{ justifyContent: 'flex-start' }}><a className="btn ghost" href={`${base}/api/files/${m.pdf_file}`} target="_blank" rel="noreferrer">PDF нээх</a>
-          {m.format === 'ELEARN' && r.manual && m.state !== 'done' && <MarkRead courseId={c.id} moduleKey={m.module_key} />}</div>
+        <PdfViewer fileId={m.pdf_file} courseId={c.id} moduleKey={m.module_key} track={m.format === 'ELEARN' && m.state !== 'done'} initialSeen={r.pdfSeen} />
       </section>}
       {m.format === 'ELEARN' && qs.length > 0 && <section className="panel">
         <h2>Тест</h2>
-        {r.videoOk ? <Quiz courseId={c.id} moduleKey={m.module_key} questions={qs} passScore={m.pass_score} best={r.quizScore} />
-          : <p className="muted">Видеог 90%-иас дээш үзсэний дараа тест нээгдэнэ.</p>}
+        {r.materialOk ? <Quiz courseId={c.id} moduleKey={m.module_key} questions={qs} passScore={m.pass_score} best={r.quizScore} />
+          : <p className="muted">{[!r.videoOk && 'Видеог бүрэн', !r.pdfOk && (r.videoOk ? 'Гарын авлагын бүх хуудсыг' : 'гарын авлагын бүх хуудсыг')].filter(Boolean).join(', ')} үзсэний дараа тест нээгдэнэ.</p>}
       </section>}
       {m.description && <section className="lsec"><h2>Модулийн тухай</h2><p style={{ whiteSpace: 'pre-wrap' }}>{m.description}</p></section>}
       {m.state === 'done' && <div className="notice soft"><strong>✓ Энэ модулийг дуусгасан байна.</strong>

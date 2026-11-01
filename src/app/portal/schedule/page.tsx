@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { all } from '@/lib/db';
 import { Chip } from '@/components/ui';
 import { fmtSession, fmtDate, fmtDuration } from '@/lib/format';
@@ -8,7 +8,7 @@ import { offCode, ENR_LABEL, ATT_LABEL, type EnrStatus } from '@/lib/offerings';
 
 // Миний хуваарь: бүртгэлтэй хуваарьт сургалт, хүлээлгийн жагсаалт, ирэх хичээлүүд, заах хичээлүүд, түүх
 export default async function MySchedule() {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const enr = await all<any>(`
     SELECT e.*, o.num, o.location, o.link, o.course_id, o.status AS ostatus, c.title AS course,
       (SELECT min(s.starts_at) FROM sessions s WHERE s.offering_id=o.id) AS first_at,

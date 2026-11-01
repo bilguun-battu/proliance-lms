@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { requireUser } from '@/lib/auth';
+import { requireUser, STAFF_ROLES } from '@/lib/auth';
 import { all, one } from '@/lib/db';
 import { drawQuestions, examQuestions, examSections, seeded, type ExamQ } from '@/lib/exams';
 import { fmtDate } from '@/lib/format';
@@ -13,7 +13,7 @@ const L = 'АБВГДЕЖЗИК';
 
 // Шалгалтын материал хэвлэх: шалгалтын хуудас (санамсаргүй хувилбар), хариултын түлхүүр, асуултын сан бүтнээр
 export default async function PrintExam(props: { params: Promise<{ id: string }>; searchParams: Promise<{ mode?: string; seed?: string }> }) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const { id } = await props.params;
   const sp = await props.searchParams;
   const e = await one<any>(`SELECT e.*, c.title AS course FROM exams e JOIN courses c ON c.id=e.course_id WHERE e.id=$1`, [id]);

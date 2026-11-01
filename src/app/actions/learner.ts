@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { all, one, run } from '@/lib/db';
 import { sendEmail } from '@/lib/notify';
 import { fmtSession } from '@/lib/format';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES } from '@/lib/auth';
 import { canAccessCourse, publishedVersion, versionModules, requirementStatus, tryComplete, logActivity, courseProgress } from '@/lib/progress';
 
 async function loadModule(userId: string, courseId: string, key: string) {
@@ -17,10 +17,10 @@ async function loadModule(userId: string, courseId: string, key: string) {
 export type QuizResult = { score: number; passed: boolean; passScore: number; wrong: number[] } | { error: string };
 
 export async function submitQuiz(courseId: string, key: string, answers: number[]): Promise<QuizResult> {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const m = await loadModule(u.id, courseId, key);
   const req = await requirementStatus(u.id, courseId, m);
-  if (!req.videoOk) return { error: 'Эхлээд видеог бүрэн үзнэ үү.' };
+  if (!req.materialOk) return { error: 'Эхлээд хичээлийн материалыг (видео, гарын авлага) бүрэн үзнэ үү.' };
   const qs = await all<{ correct_index: number }>('SELECT correct_index FROM questions WHERE module_id=$1 ORDER BY position', [m.id]);
   if (!qs.length) return { error: 'Тест алга.' };
   const wrong = qs.map((q, i) => (answers[i] === q.correct_index ? -1 : i)).filter(i => i >= 0);
@@ -33,11 +33,5 @@ export async function submitQuiz(courseId: string, key: string, answers: number[
   return { score, passed, passScore: m.pass_score, wrong };
 }
 
-export async function markRead(courseId: string, key: string) {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
-  const m = await loadModule(u.id, courseId, key);
-  await tryComplete(u.id, courseId, m, true);
-  revalidatePath(`/portal/courses/${courseId}/m/${key}`);
-}
 
 /* Хуваарьт бүртгүүлэх: src/app/actions/offerings.ts (enrollSelf, dropSelf) */

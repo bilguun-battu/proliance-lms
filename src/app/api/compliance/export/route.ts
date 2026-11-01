@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { getSession } from '@/lib/auth';
+import { getSession, isStaff } from '@/lib/auth';
 import { complianceRows, COMP_LABEL } from '@/lib/compliance';
 import { fmtDate } from '@/lib/format';
 
@@ -8,9 +8,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const u = await getSession();
-  if (!u || (u.role !== 'ADMIN' && u.role !== 'COORDINATOR')) return new Response('Эрхгүй.', { status: 403 });
+  if (!u || (!isStaff(u.role) && u.role !== 'COORDINATOR')) return new Response('Эрхгүй.', { status: 403 });
   const sp = new URL(req.url).searchParams;
-  const rows = await complianceRows({ course: sp.get('course') || undefined, department: sp.get('department') || undefined, org: u.role === 'COORDINATOR' ? u.orgId! : undefined, audience: sp.get('aud') === 'customer' ? 'CUSTOMER' : sp.get('aud') === 'internal' ? 'INTERNAL' : undefined });
+  const rows0 = await complianceRows({ course: sp.get('course') || undefined, department: sp.get('department') || undefined, org: u.role === 'COORDINATOR' ? u.orgId! : sp.get('org') || undefined, audience: sp.get('aud') === 'customer' ? 'CUSTOMER' : sp.get('aud') === 'internal' ? 'INTERNAL' : undefined });
+  const q = (sp.get('q') ?? '').trim().toLowerCase();
+  const st = sp.get('status');
+  const rows = rows0.filter(r => (!q || `${r.name} ${r.email ?? ''}`.toLowerCase().includes(q))
+    && (st === 'late' ? ['OVERDUE', 'EXPIRED'].includes(r.status) : st === 'soon' ? ['DUE_SOON', 'EXPIRING'].includes(r.status) : true));
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Заавал хамрагдах сургалт');
   ws.columns = [

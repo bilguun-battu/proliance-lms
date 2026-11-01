@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   name           text NOT NULL,
   phone          text,
   position       text,
-  role           text NOT NULL CHECK (role IN ('ADMIN','COORDINATOR','LEARNER')),
+  role           text NOT NULL CHECK (role IN ('ADMIN','TRAINING_ADMIN','TRAINER','COORDINATOR','LEARNER')),
   org_id         uuid REFERENCES orgs(id) ON DELETE SET NULL,
   password_hash  text,
   active         boolean NOT NULL DEFAULT true,
@@ -572,3 +572,24 @@ BEGIN
       ON CONFLICT DO NOTHING;
   END LOOP;
 END $$;
+
+-- Цахим хичээл: YouTube эсвэл өөр сервер дээрх видеог холбоосоор тавих
+ALTER TABLE modules ADD COLUMN IF NOT EXISTS video_url text;
+-- Видеог хаана хүртэл үзсэн (урагш гүйлгэхийг хориглоход ашиглана)
+ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS max_s real NOT NULL DEFAULT 0;
+UPDATE video_progress SET max_s = LEAST(watched_s, duration_s) WHERE max_s = 0 AND watched_s > 0;
+-- PDF гарын авлагын үзсэн хуудсууд: бүх хуудсыг үзэж байж дууссанд тооцно
+CREATE TABLE IF NOT EXISTS pdf_progress (
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id  uuid NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  module_key text NOT NULL,
+  mver       int  NOT NULL,
+  pages      int[] NOT NULL DEFAULT '{}',
+  total      int  NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, course_id, module_key, mver)
+);
+
+-- Эрх: Сургагч (TRAINER) — багшийн үйлдэл; Сургалтын админ (TRAINING_ADMIN) — хуваарь, багш оноох, шалгалт/үнэлгээний материал, хамтрагч байгууллагын заавал сургалт
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN','TRAINING_ADMIN','TRAINER','COORDINATOR','LEARNER'));

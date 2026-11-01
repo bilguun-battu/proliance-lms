@@ -293,3 +293,22 @@ ul.tl-list { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 .opick-s li { display: grid; grid-template-columns: 170px 1fr auto; gap: 10px; font-size: .9rem; padding: 4px 8px; border-radius: 8px; }
 .opick-s li.mine { background: var(--soft); font-weight: 700; }
 @media (max-width: 560px) { .opick-s li { grid-template-columns: 1fr; gap: 0; } }
+
+/* YouTube тоглуулагч, PDF үзүүлэгч */
+.yt-wrap { position: relative; aspect-ratio: 16/9; width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+.yt-wrap iframe, .yt-wrap > div { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.pdfv { height: 75vh; overflow-y: auto; background: #e9ebef; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.pdfv-page { position: relative; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); width: 100%; max-width: 900px; }
+.pdfv-page canvas { display: block; width: 100%; height: auto; }
+.pdfv-page.seen::after { content: '✓'; position: absolute; top: 6px; right: 8px; font-size: .75rem; color: #fff; background: #1f9d55; border-radius: 99px; width: 18px; height: 18px; display: grid; place-items: center; }
+.pdfv-num { position: absolute; bottom: 6px; right: 10px; font-size: .72rem; color: #8a93a8; }
+.pdfv-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.filterbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.filterbar .fld { flex: 1 1 180px; min-width: 160px; }
+.filterbar .acts { flex: 0 0 auto; }
+.checklist { display: flex; flex-direction: column; gap: 6px; }
+.checklist-box { overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; background: var(--card, #fff); }
+.checklist-box label { display: flex; gap: 8px; align-items: flex-start; font-size: .92rem; cursor: pointer; }
+.viewtabs { display: inline-flex; gap: 4px; background: var(--soft, #f2f3f6); border-radius: 10px; padding: 3px; }
+.viewtabs a { padding: 6px 12px; border-radius: 8px; text-decoration: none; color: inherit; font-size: .9rem; }
+.viewtabs a[aria-current="page"] { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }

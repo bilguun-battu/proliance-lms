@@ -5,7 +5,14 @@ import { SignJWT, jwtVerify } from 'jose';
 import crypto from 'node:crypto';
 import { one, run } from './db';
 
-export type Role = 'ADMIN' | 'COORDINATOR' | 'LEARNER';
+export type Role = 'ADMIN' | 'TRAINING_ADMIN' | 'TRAINER' | 'COORDINATOR' | 'LEARNER';
+// Суралцагчийн портал руу нэвтрэх эрхүүд (сургагч, сургалтын админ мөн өөрсдөө сургалтад сууна)
+export const PORTAL_ROLES: Role[] = ['LEARNER', 'COORDINATOR', 'TRAINER', 'TRAINING_ADMIN'];
+// Сургалтын үйл ажиллагааг удирдах эрхүүд: хуваарь, багш оноох, шалгалт, үнэлгээний материал
+export const STAFF_ROLES: Role[] = ['ADMIN', 'TRAINING_ADMIN'];
+export const isStaff = (role: string) => role === 'ADMIN' || role === 'TRAINING_ADMIN';
+// Сургалтын админд нээлттэй админ хэсгүүд
+export const TRAINING_ADMIN_PATHS = ['/admin/sessions', '/admin/exams', '/admin/evaluations', '/admin/assignments', '/admin/compliance', '/admin/assess'];
 export type SessionUser = { id: string; name: string; email: string; role: Role; orgId: string | null };
 
 export const COOKIE = 'pl_session';
@@ -45,7 +52,7 @@ export async function requireUser(...roles: Role[]): Promise<SessionUser> {
 }
 
 export function homeFor(role: Role) {
-  return role === 'ADMIN' ? '/admin' : role === 'COORDINATOR' ? '/org' : '/portal';
+  return role === 'ADMIN' ? '/admin' : role === 'TRAINING_ADMIN' ? '/admin/sessions' : role === 'TRAINER' ? '/portal/teach' : role === 'COORDINATOR' ? '/org' : '/portal';
 }
 
 // Нууц үг тохируулах холбоос (урилга болон сэргээлтэд)

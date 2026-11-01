@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth';
+import { getSession, isStaff } from '@/lib/auth';
 import { one } from '@/lib/db';
 import { runByToken, runIsOpen, attemptQuestions, attemptDeadline, gradeAttempt, latestAttempt, resultVisible, examSections, shownCount } from '@/lib/exams';
 import { all } from '@/lib/db';
@@ -78,7 +78,7 @@ export default async function ExamPage(props: { params: Promise<{ token: string 
   if (!open && !a) {
     return <Frame name={u.name}>{head}<section className="panel"><h2>Шалгалт дууссан</h2><p className="muted">Энэ холбоос идэвхгүй болсон байна.</p></section></Frame>;
   }
-  if (u.role === 'ADMIN') {
+  if (isStaff(u.role)) {
     return <Frame name={u.name}>{head}<section className="panel"><p>Та админ эрхээр нэвтэрсэн байна. Шалгалтыг суралцагчийн эрхээр өгнө.</p></section></Frame>;
   }
   if (!(await canAccessCourse(u.id, r.course_id))) {

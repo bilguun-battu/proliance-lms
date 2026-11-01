@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { getSession } from '@/lib/auth';
+import { getSession, isStaff } from '@/lib/auth';
 import { progressRows, activityRows, personRows, certificateRows } from '@/lib/reports';
 import { ACTION_LABEL, fmtDateTime, fmtDate } from '@/lib/format';
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const u = await getSession();
-  if (!u || (u.role !== 'ADMIN' && u.role !== 'COORDINATOR')) return new Response('Эрхгүй.', { status: 403 });
+  if (!u || (!isStaff(u.role) && u.role !== 'COORDINATOR')) return new Response('Эрхгүй.', { status: 403 });
   const sp = new URL(req.url).searchParams;
   const f = { course: sp.get('course') || undefined, org: u.role === 'COORDINATOR' ? u.orgId! : sp.get('org') || undefined, from: sp.get('from') || undefined, to: sp.get('to') || undefined, aud: sp.get('aud') || undefined, kind: sp.get('kind') || undefined };
   const wb = new ExcelJS.Workbook();

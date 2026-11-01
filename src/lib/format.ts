@@ -38,6 +38,8 @@ export const CATEGORIES = [
 
 export const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Proliance админ',
+  TRAINING_ADMIN: 'Сургалтын админ',
+  TRAINER: 'Сургагч',
   COORDINATOR: 'Байгууллагын хариуцагч',
   LEARNER: 'Суралцагч',
 };

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { all } from '@/lib/db';
 import { saveProduct, deleteProduct } from '@/app/actions/admin';
 import { CATEGORIES } from '@/lib/format';
@@ -31,8 +32,8 @@ export default async function Products(props: { searchParams: Promise<{ ok?: str
           <thead><tr><th>Код</th><th>Нэр</th><th>Ангилал</th><th className="r">Сургалт</th><th className="r">Байгууллага</th><th></th></tr></thead>
           <tbody>{rows.map(p => (
             <tr key={p.id}>
-              <td className="num"><strong>{p.code}</strong></td><td>{p.name}</td><td className="muted">{p.category}</td>
-              <td className="r">{p.courses}</td><td className="r">{p.orgs}</td>
+              <td className="num"><Link className="link" href={`/admin/products/${p.id}`}><strong>{p.code}</strong></Link></td><td><Link className="link" href={`/admin/products/${p.id}`}>{p.name}</Link></td><td className="muted">{p.category}</td>
+              <td className="r"><Link className="link" href={`/admin/products/${p.id}`}>{p.courses} · нэмэх</Link></td><td className="r">{p.orgs}</td>
               <td>
                 <details><summary className="small muted" style={{ cursor: 'pointer' }}>Засах</summary>
                   <form action={saveProduct} className="stack" style={{ minWidth: 240, marginTop: 8 }}>

@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { getSession } from '@/lib/auth';
+import { getSession, isStaff } from '@/lib/auth';
 import { all, one } from '@/lib/db';
 import { summarize, EvalAnswer } from '@/lib/evals';
 import { fmtDateTime } from '@/lib/format';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const u = await getSession();
-  if (!u || u.role !== 'ADMIN') return new Response('Эрхгүй.', { status: 403 });
+  if (!u || !isStaff(u.role)) return new Response('Эрхгүй.', { status: 403 });
   const r = await one<any>('SELECT r.*, t.name, t.anonymous FROM eval_runs r JOIN eval_templates t ON t.id=r.template_id WHERE r.id=$1', [params.id]);
   if (!r) return new Response('Олдсонгүй.', { status: 404 });
   const wb = new ExcelJS.Workbook();

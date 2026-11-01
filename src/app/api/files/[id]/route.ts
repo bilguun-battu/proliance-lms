@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { getSession } from '@/lib/auth';
+import { getSession, isStaff } from '@/lib/auth';
 import { one } from '@/lib/db';
 import { uploadDir } from '@/lib/files';
 import { learnerCourseIds, logActivity } from '@/lib/progress';
@@ -17,7 +17,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   const f = await one<any>('SELECT * FROM files WHERE id=$1', [params.id]);
   if (!f) return new Response('Файл олдсонгүй.', { status: 404 });
 
-  if (u.role !== 'ADMIN') {
+  if (!isStaff(u.role)) {
     const uses = await one<any>(`
       SELECT v.course_id, m.module_key, m.title FROM modules m JOIN course_versions v ON v.id=m.version_id
        WHERE v.status='PUBLISHED' AND (m.video_file=$1 OR m.pdf_file=$1) AND v.course_id = ANY($2) LIMIT 1`,

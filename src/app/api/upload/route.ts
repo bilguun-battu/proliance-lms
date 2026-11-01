@@ -46,6 +46,6 @@ export async function PUT(req: Request) {
   }
   const f = await one<{ id: string }>('INSERT INTO files (name,mime,size,path) VALUES ($1,$2,$3,$4) RETURNING id', [name, mime, size, stored]);
   const col = kind === 'pdf' ? 'pdf_file' : 'video_file';
-  await run(`UPDATE modules SET ${col}=$1, change = CASE WHEN change='SAME' THEN 'CHANGED' ELSE change END WHERE id=$2`, [f!.id, moduleId]);
+  await run(`UPDATE modules SET ${col}=$1${kind === 'video' ? ', video_url=NULL' : ''}, change = CASE WHEN change='SAME' THEN 'CHANGED' ELSE change END WHERE id=$2`, [f!.id, moduleId]);
   return Response.json({ id: f!.id });
 }

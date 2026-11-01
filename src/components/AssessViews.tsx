@@ -1,3 +1,4 @@
+import { isStaff } from '@/lib/auth';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { all, one } from '@/lib/db';
@@ -12,7 +13,7 @@ import { PR_LABEL } from './PracticalLearner';
 
 // Үнэлэгч хандах боломжтой сургалтууд: админ бол бүгд, сургагч бол эрх авсан сургалтууд
 async function assessableCourses(u: SessionUser) {
-  return u.role === 'ADMIN'
+  return isStaff(u.role)
     ? all<any>('SELECT id, title, audience FROM courses ORDER BY audience, title')
     : all<any>('SELECT c.id, c.title, c.audience FROM trainer_quals q JOIN courses c ON c.id=q.course_id WHERE q.user_id=$1 ORDER BY c.title', [u.id]);
 }
@@ -36,7 +37,7 @@ export async function AssessQueue({ user, base, sp }: { user: SessionUser; base:
   const people = vocMods.length ? await all<any>(`SELECT DISTINCT acc.cid, u.id, u.name FROM (${ACCESS_SQL}) acc JOIN users u ON u.id=acc.uid WHERE acc.cid = ANY($1) AND u.id <> $2 ORDER BY u.name`, [vocMods.map(m => m.course_id), user.id]) : [];
   return (
     <>
-      <div className="head"><div><h1>OJT / VoC үнэлгээ</h1><p className="muted">{user.role === 'ADMIN' ? 'Бүх сургалтын' : 'Таны сургагч эрхтэй сургалтуудын'} ажлын байрны даалгавар болон ур чадварын баталгаажуулалт.</p></div></div>
+      <div className="head"><div><h1>OJT / VoC үнэлгээ</h1><p className="muted">{isStaff(user.role) ? 'Бүх сургалтын' : 'Таны сургагч эрхтэй сургалтуудын'} ажлын байрны даалгавар болон ур чадварын баталгаажуулалт.</p></div></div>
       <Flash sp={sp} />
       {!courses.length && <div className="notice soft"><strong>Танд сургагч багшийн эрх алга.</strong><span className="small muted">Train the Trainer сургалт дуусгах эсвэл админаас эрх авна.</span></div>}
       <section className="panel">

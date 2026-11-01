@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { all, one } from '@/lib/db';
-import { updateModuleMeta, addQuestion, deleteQuestion, removeModuleFile, addModuleItem, deleteModuleItem } from '@/app/actions/admin';
+import { updateModuleMeta, addQuestion, deleteQuestion, removeModuleFile, addModuleItem, deleteModuleItem, setModuleVideoUrl } from '@/app/actions/admin';
+import { parseVideoUrl } from '@/lib/video';
 import { Flash } from '@/components/ui';
 import Submit from '@/components/Submit';
 import Uploader from '@/components/Uploader';
@@ -24,6 +25,7 @@ export default async function ModuleEdit(
   const practical = m.format === 'OJT' || m.format === 'VOC';
   const files = await all<any>('SELECT id, name, size FROM files WHERE id = ANY($1)', [[m.video_file, m.pdf_file].filter(Boolean)]);
   const f = (id: string | null) => files.find(x => x.id === id);
+  const vsrc = parseVideoUrl(m.video_url);
   const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
   const hidden = <><input type="hidden" name="course_id" value={m.course_id} /><input type="hidden" name="module_id" value={m.id} /></>;
   const back = `/admin/courses/${m.course_id}/draft/${m.id}`;
@@ -44,7 +46,21 @@ export default async function ModuleEdit(
               <Uploader moduleId={m.id} kind="video" accept="video/mp4,video/webm" label="Видео солих" />
               <form action={removeModuleFile}>{hidden}<input type="hidden" name="kind" value="video" /><Submit className="btn sm danger">Хасах</Submit></form>
             </div>
+          </> : vsrc ? <>
+            {vsrc.kind === 'youtube'
+              ? <div className="yt-wrap"><iframe src={`https://www.youtube-nocookie.com/embed/${vsrc.id}?rel=0`} title="YouTube" allow="encrypted-media; picture-in-picture" allowFullScreen /></div>
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              : <video src={vsrc.url} controls preload="metadata" style={{ width: '100%', borderRadius: 10, background: '#000' }} />}
+            <div className="meta"><span>{vsrc.kind === 'youtube' ? 'YouTube' : 'Гадны сервер'}</span><a className="link" href={m.video_url} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all' }}>{m.video_url}</a></div>
+            <form action={removeModuleFile}>{hidden}<input type="hidden" name="kind" value="url" /><Submit className="btn sm danger">Холбоос хасах</Submit></form>
           </> : <Uploader moduleId={m.id} kind="video" accept="video/mp4,video/webm" label="Видео байршуулах (MP4, 500MB хүртэл)" />}
+          <form action={setModuleVideoUrl} className="stack" style={{ gap: 6 }}>
+            {hidden}
+            <label className="fld"><span>{m.video_file ? 'Эсвэл файлын оронд' : 'Эсвэл'} видео холбоос (URL)</span>
+              <input type="url" name="video_url" defaultValue={m.video_url ?? ''} placeholder="https://www.youtube.com/watch?v=… эсвэл https://…/bichleg.mp4" required /></label>
+            <div className="acts" style={{ justifyContent: 'flex-start' }}><Submit className="btn ghost sm">Холбоос хадгалах</Submit>
+              <span className="small muted">YouTube эсвэл өөр сервер дээрх MP4/WebM бичлэг. Суралцагч бичлэгийг эхнээс нь дуустал бүрэн үзэж байж хичээл дууссанд тооцогдоно.</span></div>
+          </form>
         </section> : practical ? <section className="panel">
           <h2>{m.format === 'OJT' ? 'Ажлын байран дээрх даалгаврууд' : 'Ур чадварын шалгуурууд'} ({items.length})</h2>
           <p className="small muted">{m.format === 'OJT'
@@ -93,7 +109,7 @@ export default async function ModuleEdit(
 
       {m.format === 'ELEARN' && <section className="panel">
         <h2>Тест ({qs.length} асуулт)</h2>
-        <p className="small muted">Видео бүрэн үзсэний дараа тест нээгдэнэ. Тестгүй бол видео үзэж дуусгахад модуль дуусна.</p>
+        <p className="small muted">Видео болон гарын авлагын бүх хуудсыг 100% үзсэний дараа тест нээгдэнэ. Тестгүй бол материалыг бүрэн үзэж дуусгахад модуль дуусна.</p>
         {qs.map((q, i) => (
           <div key={q.id} className="q">
             <div className="acts" style={{ justifyContent: 'space-between' }}>

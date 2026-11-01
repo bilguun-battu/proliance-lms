@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth';
+import { requireUser, STAFF_ROLES } from '@/lib/auth';
 import { AssessForm } from '@/components/AssessViews';
 
 export default async function Page(
@@ -6,6 +6,6 @@ export default async function Page(
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const u = await requireUser('ADMIN');
+  const u = await requireUser(...STAFF_ROLES);
   return <AssessForm user={u} base="/admin/assess" id={params.id} sp={searchParams} />;
 }

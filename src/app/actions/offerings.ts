@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { all, one, run, tx } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, PORTAL_ROLES, STAFF_ROLES } from '@/lib/auth';
 import { canAccessCourse } from '@/lib/progress';
 import { enroll, drop, promote, markAttendance, setResult, canManageOffering, cancelOffering, getOffering, offCode } from '@/lib/offerings';
 
@@ -16,7 +16,7 @@ const back = (fd: FormData, id: string) => s(fd, 'back') || `/admin/sessions/${i
 
 /* ---------------- Админ: хуваарьт сургалт ---------------- */
 export async function createOffering(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const courseId = s(fd, 'course_id');
   const err = (m: string) => go(`/admin/sessions/new?course=${courseId}`, m, true);
   const mods = await all<any>(`SELECT m.module_key, m.title, m.format, m.duration_min FROM modules m JOIN course_versions v ON v.id=m.version_id
@@ -51,7 +51,7 @@ export async function createOffering(fd: FormData) {
 }
 
 export async function updateOffering(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const id = s(fd, 'offering_id');
   const instr = s(fd, 'instructor_id');
   const max = Math.max(1, Number(s(fd, 'max_capacity')) || 12);
@@ -68,7 +68,7 @@ export async function updateOffering(fd: FormData) {
 }
 
 export async function updateSessionTime(fd: FormData) {
-  const u = await requireUser('ADMIN');
+  const u = await requireUser(...STAFF_ROLES);
   const id = s(fd, 'session_id');
   const sess = await one<any>('SELECT * FROM sessions WHERE id=$1', [id]);
   if (!sess || !(await canManageOffering(u, sess.offering_id))) go('/admin/sessions', 'Эрхгүй.', true);
@@ -78,14 +78,14 @@ export async function updateSessionTime(fd: FormData) {
 }
 
 export async function cancelOfferingAction(fd: FormData) {
-  await requireUser('ADMIN');
+  await requireUser(...STAFF_ROLES);
   const n = await cancelOffering(s(fd, 'offering_id'));
   go(`/admin/sessions/${s(fd, 'offering_id')}`, `Хуваарь цуцлагдаж, ${n} хүнд мэдэгдэл очлоо.`);
 }
 
 /* ---------------- Админ ба сургагч багш: оролцогчид ---------------- */
 async function manager(fd: FormData) {
-  const u = await requireUser('ADMIN', 'LEARNER', 'COORDINATOR');
+  const u = await requireUser('ADMIN', ...PORTAL_ROLES);
   const id = s(fd, 'offering_id');
   if (!(await canManageOffering(u, id))) go('/portal', 'Энэ хуваарийг удирдах эрхгүй.', true);
   return { u, id };
@@ -132,7 +132,7 @@ export async function resultAction(fd: FormData) {
 
 /* ---------------- Суралцагч ---------------- */
 export async function enrollSelf(offeringId: string): Promise<{ error?: string; ok?: string }> {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const o = await getOffering(offeringId);
   if (!o || !(await canAccessCourse(u.id, o.course_id))) return { error: 'Энэ сургалтад бүртгүүлэх эрхгүй байна.' };
   const r = await enroll(offeringId, u.id);
@@ -141,7 +141,7 @@ export async function enrollSelf(offeringId: string): Promise<{ error?: string; 
 }
 
 export async function dropSelf(offeringId: string): Promise<{ error?: string; ok?: string }> {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
+  const u = await requireUser(...PORTAL_ROLES);
   const o = await getOffering(offeringId);
   const r = await drop(offeringId, u.id);
   if (o) revalidatePath(`/portal/courses/${o.course_id}`);

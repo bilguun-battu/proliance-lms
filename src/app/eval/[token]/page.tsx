@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth';
+import { getSession, isStaff } from '@/lib/auth';
 import { one } from '@/lib/db';
 import { evalRunByToken, templateQuestions } from '@/lib/evals';
 import { runIsOpen } from '@/lib/exams';
@@ -35,7 +35,7 @@ export default async function EvalPage(props: { params: Promise<{ token: string 
   const done = await one('SELECT 1 FROM eval_responses WHERE run_id=$1 AND user_id=$2', [r.id, u.id]);
   if (done) return <Frame name={u.name}>{head}<section className="panel" style={{ textAlign: 'center' }}><h2>Баярлалаа!</h2><p className="muted">Таны үнэлгээ хүлээн авлаа. Таны санал хичээлийг сайжруулахад тусална.</p></section></Frame>;
   if (!runIsOpen(r)) return <Frame name={u.name}>{head}<section className="panel"><h2>Үнэлгээ хаагдсан</h2><p className="muted">Энэ холбоос идэвхгүй болсон байна.</p></section></Frame>;
-  if (u.role === 'ADMIN') return <Frame name={u.name}>{head}<section className="panel"><p>Та админ эрхээр нэвтэрсэн байна. Үнэлгээг суралцагчийн эрхээр бөглөнө.</p></section></Frame>;
+  if (isStaff(u.role)) return <Frame name={u.name}>{head}<section className="panel"><p>Та админ эрхээр нэвтэрсэн байна. Үнэлгээг суралцагчийн эрхээр бөглөнө.</p></section></Frame>;
   if (r.course_id && !(await canAccessCourse(u.id, r.course_id))) return <Frame name={u.name}>{head}<section className="panel"><h2>Эрх хүрэхгүй байна</h2><p className="muted">Танай байгууллагад энэ сургалт нээгдээгүй байна.</p></section></Frame>;
   const qs = await templateQuestions(r.template_id);
   return (

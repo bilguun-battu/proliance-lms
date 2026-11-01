@@ -1,3 +1,4 @@
+import { isStaff } from '@/lib/auth';
 import Link from 'next/link';
 import { all } from '@/lib/db';
 import type { SessionUser } from '@/lib/auth';
@@ -26,16 +27,16 @@ export default async function OfferingManage({ id, me, base, examBase }: { id: s
   const dropped = enr.filter(e => e.status === 'DROPPED');
   const exams = await all<any>(`SELECT id, title, module_key, duration_min FROM exams WHERE course_id=$1 AND status='ACTIVE' ORDER BY title`, [o.course_id]);
   const runs = await all<any>(`SELECT id, session_id, opened_at, closes_at, closed_at FROM exam_runs WHERE session_id = ANY($1) ORDER BY opened_at`, [sessions.map(s => s.id)]);
-  const evalRuns = me.role === 'ADMIN' ? await all<any>(`SELECT r.id, r.session_id, r.opened_at, (SELECT count(*)::int FROM eval_responses x WHERE x.run_id=r.id) AS n
+  const evalRuns = isStaff(me.role) ? await all<any>(`SELECT r.id, r.session_id, r.opened_at, (SELECT count(*)::int FROM eval_responses x WHERE x.run_id=r.id) AS n
      FROM eval_runs r WHERE r.session_id = ANY($1) ORDER BY r.opened_at`, [sessions.map(s => s.id)]) : [];
   const candidates = await all<any>(`
     SELECT u.id, u.name, o.name AS org FROM users u LEFT JOIN orgs o ON o.id=u.org_id
-     WHERE u.role IN ('LEARNER','COORDINATOR') AND u.active AND coalesce(o.is_internal,false) = $2
+     WHERE u.role IN ('LEARNER','COORDINATOR','TRAINER','TRAINING_ADMIN') AND u.active AND coalesce(o.is_internal,false) = $2
        AND NOT EXISTS (SELECT 1 FROM offering_enrollments e WHERE e.offering_id=$1 AND e.user_id=u.id AND e.status <> 'DROPPED')
      ORDER BY o.name, u.name LIMIT 500`, [id, o.audience === 'INTERNAL']);
   const now = Date.now();
   const tmpl = new Map<string, any[]>();
-  if (me.role === 'ADMIN') for (const x of sessions) tmpl.set(x.id, await matchingTemplates(o.course_id, x.format));
+  if (isStaff(me.role)) for (const x of sessions) tmpl.set(x.id, await matchingTemplates(o.course_id, x.format));
   const hid = <><input type="hidden" name="offering_id" value={id} /><input type="hidden" name="back" value={`${base}/${id}`} /></>;
   const free = Math.max(0, o.max_capacity - o.taken);
   return (
@@ -98,7 +99,7 @@ export default async function OfferingManage({ id, me, base, examBase }: { id: s
                     <Submit className="btn sm">QR шалгалт эхлүүлэх</Submit>
                   </form> : <span className="small muted">Энэ хичээлд шалгалт үүсгээгүй байна.</span>}
                 </div>
-                {me.role === 'ADMIN' && (() => {
+                {isStaff(me.role) && (() => {
                   const tsx = tmpl.get(s.id) ?? [];
                   return <div className="notice soft" style={{ gap: 10 }}>
                     <strong>Хичээлийн үнэлгээ</strong>
