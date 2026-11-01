@@ -226,7 +226,7 @@ npm start                         # http://localhost:3000
 | Нэвтэрсний дараа дахин нэвтрэх хуудас гарна | `APP_URL` https хаягтай байна. Компьютер дээр `http://localhost:3000` байх ёстой (`npm run local` өөрөө засна). |
 | `Node.js ... хуучин байна` | Node.js 20.9+ суулгана. |
 | `cookies(...).get is not a function`, `Суулгасан сангийн хувилбар таарахгүй` | `npm audit fix --force` ажиллуулснаас сангууд өөр хувилбар руу солигдсон. `node_modules` хавтсыг устгаад `npm install`, дараа нь `npm run local`. `npm audit fix --force`-ыг бүү ажиллуулаарай. |
-| `Port 3000 is in use` | 3000 портыг өөр програм эзэлсэн. Түүнийг хаах эсвэл `.env`-д `APP_URL=http://localhost:3001`. |
+| `could not bind IPv4 address`, `Port 3000 is in use` | Порт эзлэгдсэн (ихэвчлэн өмнө ажиллуулсан хувилбар хаагдаагүй). `npm run local` одоо чөлөөтэй портыг өөрөө сонгоно. Хуучныг унтраах бол Task Manager-аас `postgres.exe`, `node.exe`-г хаана. |
 
 Жишээ өгөгдөлтэй бол дараах эрхээр туршина:
 

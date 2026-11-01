@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import net from 'node:net';
 import { ensureEnv, switchToEmbedded } from './ensure-env.mjs';
 
 const root = process.cwd();
@@ -32,6 +33,31 @@ if (major < 18 || (major === 18 && minor < 18)) {
     console.error('  Анхаар: "npm audit fix --force" бүү ажиллуулаарай, энэ нь сангуудыг тохирохгүй хувилбар руу сольдог.');
     process.exit(1);
   }
+}
+
+// Порт чөлөөтэй эсэхийг шалгаж, эзлэгдсэн бол дараагийн чөлөөт портыг олно
+function portFree(port, host = '127.0.0.1') {
+  return new Promise(resolve => {
+    const srv = net.createServer();
+    srv.once('error', () => resolve(false));
+    srv.once('listening', () => srv.close(() => resolve(true)));
+    srv.listen(Number(port), host);
+  });
+}
+async function freePort(start, hosts = ['127.0.0.1']) {
+  for (let p = Number(start); p < Number(start) + 50; p++) {
+    let ok = true;
+    for (const h of hosts) if (!(await portFree(p, h))) { ok = false; break; }
+    if (ok) return String(p);
+  }
+  throw new Error(`${start}-${Number(start) + 49} хооронд чөлөөтэй порт олдсонгүй.`);
+}
+function setEnvLine(key, value) {
+  const file = path.join(root, '.env');
+  let s = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const re = new RegExp(`^\\s*${key}\\s*=.*$`, 'm');
+  s = re.test(s) ? s.replace(re, `${key}=${value}`) : `${key}=${value}\n${s}`;
+  fs.writeFileSync(file, s);
 }
 
 function readEnv() {
@@ -104,19 +130,25 @@ async function startEmbedded(url) {
       throw new Error('PostgreSQL-ийг бэлтгэж чадсангүй (дээрх мессежийг харна уу).');
     }
   }
-  const port = u.port || '5439';
+  let port = u.port || '5439';
   // pg_ctl нь Windows-ийн администратор эрхтэй хэрэглэгч дээр ч эрхийг нь бууруулж аюулгүй асаана
   const st = await exec(pgBin.pg_ctl, ['-D', dir, 'status']);
   if (st.code === 0) {
     console.log(`PostgreSQL аль хэдийн ажиллаж байна: 127.0.0.1:${port}`);
   } else {
+    if (!(await portFree(port))) {
+      const np = await freePort(Number(port) + 1);
+      console.log(`${port} портыг өөр програм (магадгүй өмнө ажиллуулсан PostgreSQL) эзэлсэн тул ${np} порт ашиглана.`);
+      port = np; u.port = np;
+      setEnvLine('DATABASE_URL', u.toString());
+    }
     const logFile = path.join(dir, 'server.log');
     const r = await exec(pgBin.pg_ctl, ['-D', dir, '-l', logFile, '-w', '-t', '90', '-o',
       `-p ${port} -c listen_addresses=127.0.0.1 -c unix_socket_directories=`, 'start']);
     if (r.code !== 0) {
       const tail = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split(/\r?\n/).slice(-15).join('\n') : '';
       console.error((r.out + '\n' + tail).trim());
-      throw new Error(/already in use|Address already|бусад/i.test(tail)
+      throw new Error(/already in use|Address already|Only one usage|бусад/i.test(tail)
         ? `${port} порт эзлэгдсэн байна. Өөр "npm run local" ажиллаж байгаа эсэхийг шалгана уу.`
         : 'PostgreSQL асаж чадсангүй (дээрх мессежийг харна уу).');
     }
@@ -158,7 +190,14 @@ async function main() {
   process.env.NEXT_PUBLIC_BASE_PATH = '';
   const next = path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next');
   if (prod) await run([next, 'build'], { NODE_ENV: 'production' });
-  const port = new URL(appUrl).port || '3000';
+  let port = new URL(appUrl).port || '3000';
+  if (!(await portFree(port, '127.0.0.1')) || !(await portFree(port, '0.0.0.0'))) {
+    const np = await freePort(Number(port) + 1, ['127.0.0.1', '0.0.0.0']);
+    console.log(`${port} портыг өөр програм эзэлсэн тул ${np} порт ашиглана.`);
+    port = np;
+    appUrl = `http://localhost:${np}`;
+    process.env.APP_URL = appUrl;
+  }
   console.log(`\n✔ Бэлэн: ${appUrl}\n  Админ: ${env.ADMIN_EMAIL || 'admin@proliance.mn'} / ${env.ADMIN_PASSWORD || 'Proliance2026!'}${noSeed ? '' : '\n  Жишээ хэрэглэгчид: нууц үг Test1234! (README-г харна уу)'}\n  Зогсоох: Ctrl+C\n`);
   const app = spawn(process.execPath, [next, prod ? 'start' : 'dev', '-p', port], { stdio: 'inherit', cwd: root, env: { ...process.env, ...(prod ? { NODE_ENV: 'production' } : {}) } });
   let stopping = false;
