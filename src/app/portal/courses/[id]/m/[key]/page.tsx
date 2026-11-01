@@ -11,6 +11,8 @@ import Quiz from '@/components/Quiz';
 import MarkRead from '@/components/MarkRead';
 import PracticalLearner from '@/components/PracticalLearner';
 import { Flash } from '@/components/ui';
+import LearnFrame from '@/components/LearnFrame';
+import { fmtDuration } from '@/lib/format';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
@@ -47,14 +49,12 @@ export default async function ModulePage(
     SELECT s.starts_at, a.status FROM session_attendees a JOIN sessions s ON s.id=a.session_id
      WHERE a.user_id=$1 AND s.course_id=$2 AND s.module_key=$3 AND s.starts_at <= now() ORDER BY s.starts_at DESC LIMIT 3`, [u.id, c.id, m.module_key]);
   return (
-    <>
-      <div><Link className="link small" href={`/portal/courses/${c.id}`}>← {c.title}</Link></div>
+    <LearnFrame course={c} modules={p.modules} current={m.module_key}>
       <div className="head">
-        <div><p className="fmt" style={{ margin: 0 }}>Модуль {idx + 1}/{p.total} · {FORMAT_LABEL[m.format]}</p><h1>{m.title}</h1></div>
+        <div><p className="lkick">Модуль {idx + 1}/{p.total} · {FORMAT_LABEL[m.format]}{m.duration_min ? ` · ${fmtDuration(m.duration_min)}` : ''}</p><h1 className="ltitle">{m.title}</h1></div>
         <StateChip state={m.state} />
       </div>
       <Flash sp={searchParams} />
-      {m.description && <p style={{ margin: 0 }}>{m.description}</p>}
       {practical && <PracticalLearner kind={m.format as 'OJT' | 'VOC'} courseId={c.id} moduleKey={m.module_key} items={items} open={openRec}
         history={recs.filter(x => ['COMPETENT', 'NYC'].includes(x.status))} done={m.state === 'done'} />}
       {scheduled && <section className="panel">
@@ -76,9 +76,9 @@ export default async function ModulePage(
         {r.videoOk ? <Quiz courseId={c.id} moduleKey={m.module_key} questions={qs} passScore={m.pass_score} best={r.quizScore} />
           : <p className="muted">Видеог 90%-иас дээш үзсэний дараа тест нээгдэнэ.</p>}
       </section>}
-      {m.state === 'done' && <div className="notice soft"><strong>Энэ модулийг дуусгасан байна.</strong>
-        {next ? <div><Link className="btn" href={`/portal/courses/${c.id}/m/${next.module_key}`}>Дараагийн модуль: {next.title}</Link></div>
-          : <div><Link className="btn" href={`/portal/courses/${c.id}`}>Сургалт руу буцах</Link></div>}</div>}
-    </>
+      {m.description && <section className="lsec"><h2>Модулийн тухай</h2><p style={{ whiteSpace: 'pre-wrap' }}>{m.description}</p></section>}
+      {m.state === 'done' && <div className="notice soft"><strong>✓ Энэ модулийг дуусгасан байна.</strong>
+        <span className="small">{next ? `Дараагийнх: ${next.title}` : 'Сургалтын бүх модулийг үзсэн бол сургалтын нүүр хуудаснаас явцаа харна уу.'}</span></div>}
+    </LearnFrame>
   );
 }

@@ -2,35 +2,38 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { all, one } from '@/lib/db';
-import { canAccessCourse, courseProgress, REQUIRED, FORMAT_LABEL } from '@/lib/progress';
-import { CourseChip, StateChip } from '@/components/ui';
-import { fmtDate } from '@/lib/format';
+import { canAccessCourse, courseProgress, REQUIRED, CATEGORY_LABEL, CAT_TONE, FORMAT_LABEL } from '@/lib/progress';
+import { StateChip } from '@/components/ui';
+import { fmtDate, fmtDuration } from '@/lib/format';
 import { complianceRows, COMP_LABEL, COMPLIANT_SET } from '@/lib/compliance';
+import CourseCover from '@/components/CourseCover';
+import LearnFrame from '@/components/LearnFrame';
 
-const COL: Record<string, string> = { todo: 'var(--crit)', retake: 'var(--warn)', newmod: 'var(--info)' };
-
-export default async function CoursePage(
-  props: { params: Promise<{ id: string }>; searchParams: Promise<{ all?: string }> }
-) {
-  const searchParams = await props.searchParams;
+export default async function CoursePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const u = await requireUser('LEARNER', 'COORDINATOR');
   if (!(await canAccessCourse(u.id, params.id))) notFound();
-  const c = await one<any>('SELECT * FROM courses WHERE id=$1', [params.id]);
+  const c = await one<any>(`SELECT c.*, (SELECT string_agg(p.code, ', ') FROM course_products cp JOIN products p ON p.id=cp.product_id WHERE cp.course_id=c.id) AS codes
+    FROM courses c WHERE c.id=$1`, [params.id]);
   const p = (await courseProgress(u.id, params.id))!;
   const versions = await all<any>(`SELECT number, notes, published_at FROM course_versions WHERE course_id=$1 AND status='PUBLISHED' ORDER BY number DESC`, [c.id]);
-  const showAll = searchParams.all === '1' || p.left === 0;
   const mand = (await complianceRows({ user: u.id, course: c.id }))[0];
-  const regs = (await all<{ module_key: string }>(`SELECT s.module_key FROM session_attendees a JOIN sessions s ON s.id=a.session_id
-     WHERE a.user_id=$1 AND s.course_id=$2 AND a.status='REGISTERED' AND s.status='SCHEDULED' AND s.starts_at > now()`, [u.id, c.id])).map(r => r.module_key);
-  const mods = showAll ? p.modules : p.modules.filter(m => REQUIRED.includes(m.state));
+  const cert = await one<any>('SELECT id, number FROM certificates WHERE user_id=$1 AND course_id=$2 AND NOT revoked ORDER BY issued_at DESC LIMIT 1', [u.id, c.id]);
   const updated = p.version.number > 1 && p.modules.some(m => m.state === 'retake' || m.state === 'newmod' || m.state === 'recommended');
+  const mins = p.modules.reduce((t, m) => t + (m.duration_min || 0), 0);
+  const req = p.modules.filter(m => REQUIRED.includes(m.state));
   return (
-    <>
-      <div><Link className="link small" href="/portal">← Миний сургалт</Link></div>
-      <div className="head">
-        <div><h1>{c.title}</h1><p className="muted">v{p.version.number} · {p.done}/{p.total} модуль дууссан</p></div>
-        <CourseChip k={p.key} />
+    <LearnFrame course={c} modules={p.modules} current={null}>
+      <div className="lhero">
+        <div className="lhero-img"><CourseCover title={c.title} category={c.category} cover={c.cover_file} codes={c.codes} /></div>
+        <div className="stack" style={{ alignContent: 'start' }}>
+          <span className={`ccat t-${CAT_TONE[c.category]}`}>{CATEGORY_LABEL[c.category]}</span>
+          <h1 className="ltitle">{c.title}</h1>
+          <div className="ccard-meta"><span>📚 {p.total} модуль</span>{mins > 0 && <span>⏱ {fmtDuration(mins)}</span>}<span>v{p.version.number}</span>{c.codes && <span className="num">{c.codes}</span>}</div>
+          <div className="ccard-prog"><div className="bar" style={{ maxWidth: 'none' }}><span style={{ width: `${p.total ? Math.round((p.done / p.total) * 100) : 0}%` }} /></div>
+            <span className="small muted num">{p.done}/{p.total}</span></div>
+          {cert && <Link className="link small" href={`/cert/${cert.id}`}>🎓 Гэрчилгээ {cert.number}</Link>}
+        </div>
       </div>
       {mand && <div className={`notice ${mand.status === 'OVERDUE' || mand.status === 'EXPIRED' ? '' : 'soft'}`}>
         <strong>Заавал хамрагдах сургалт · {COMP_LABEL[mand.status][0]}</strong>
@@ -41,29 +44,21 @@ export default async function CoursePage(
       {updated && <div className="notice"><strong>{p.version.number}-р хувилбар гарсан ({fmtDate(p.version.published_at)})</strong>
         <span className="small">{p.version.notes}</span>
         <span className="small" style={{ opacity: .9 }}>Өмнө нь дуусгасан, өөрчлөгдөөгүй модулиуд тань хэвээр тооцогдоно.</span></div>}
-      {c.description && <p style={{ margin: 0 }}>{c.description}</p>}
-      <div className="head">
-        <h2>{showAll ? 'Бүх модуль' : 'Үзэх шаардлагатай модуль'}</h2>
-        {p.left > 0 && <Link className="link small" href={showAll ? `/portal/courses/${c.id}` : `/portal/courses/${c.id}?all=1`}>{showAll ? 'Зөвхөн үзэх шаардлагатайг' : 'Бүх модулийг харах'}</Link>}
-      </div>
-      <div className="list">{mods.map(m => {
-        const inner = (<>
-          <div><strong>{m.title}</strong>
-            <div className="meta"><span className="fmt">{m.format !== 'ELEARN' ? FORMAT_LABEL[m.format] : (m.video_file ? 'Видео' : 'Гарын авлага') + (m.qcount ? ' · тест' : '')}</span><span>{m.duration_min} мин</span><StateChip state={m.state} /></div>
-            {!m.unlocked && <div className="small muted" style={{ marginTop: 4 }}>Өмнөх модулиа дуусгасны дараа нээгдэнэ.</div>}
-          </div>
-          <div className="acts">{m.unlocked && <span className="btn sm">{m.state === 'done' ? 'Дахин үзэх' : m.format === 'OJT' ? 'Даалгавар' : m.format === 'VOC' ? 'Үнэлгээ' : m.format !== 'ELEARN' ? (regs.includes(m.module_key) ? 'Бүртгүүлсэн' : 'Хуваарь сонгох') : 'Эхлэх'}</span>}</div>
-        </>);
-        return m.unlocked
-          ? <Link key={m.id} href={`/portal/courses/${c.id}/m/${m.module_key}`} className={`row ${REQUIRED.includes(m.state) ? 'req' : ''}`} style={{ ['--c' as any]: COL[m.state] }}>{inner}</Link>
-          : <div key={m.id} className="row locked">{inner}</div>;
-      })}</div>
-      <section className="panel">
+      {c.description && <section className="lsec"><h2>Сургалтын тухай</h2><p style={{ whiteSpace: 'pre-wrap' }}>{c.description}</p></section>}
+      <section className="lsec">
+        <h2>{req.length ? `Үзэх шаардлагатай ${req.length} модуль` : 'Бүх модулийг дуусгасан байна'}</h2>
+        <div className="list">{(req.length ? req : p.modules).map(m => (
+          <Link key={m.module_key} className={`row ${!m.unlocked ? 'locked' : ''}`} href={m.unlocked ? `/portal/courses/${c.id}/m/${m.module_key}` : '#'}>
+            <div><strong>{m.title}</strong><div className="meta"><span className="fmt">{FORMAT_LABEL[m.format]}</span>{m.duration_min > 0 && <span>{fmtDuration(m.duration_min)}</span>}<StateChip state={m.state} /></div>
+              {!m.unlocked && <div className="small muted">Өмнөх модулиа дуусгасны дараа нээгдэнэ.</div>}</div>
+          </Link>))}</div>
+      </section>
+      {versions.length > 1 && <section className="lsec">
         <h2>Хувилбарын түүх</h2>
         {versions.map(v => <div key={v.number} className={`ver ${v.number === p.version.number ? 'cur' : ''}`}>
           <div className="small"><strong className="num">v{v.number}</strong> <span className="muted">{fmtDate(v.published_at)}</span></div>
           {v.notes && <div className="small">{v.notes}</div>}</div>)}
-      </section>
-    </>
+      </section>}
+    </LearnFrame>
   );
 }

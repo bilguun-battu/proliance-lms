@@ -14,10 +14,11 @@ export default async function NewCourse(
     <>
       <div className="head"><h1>Шинэ сургалт</h1></div>
       <Flash sp={searchParams} />
-      <form action={createCourse} className="panel">
+      <form action={createCourse} className="panel" encType="multipart/form-data">
         <div className="form">
           <label className="fld full"><span>Сургалтын нэр</span><input type="text" name="title" required /></label>
           <label className="fld full"><span>Тайлбар</span><textarea name="description" /></label>
+          <label className="fld full"><span>Нүүр зураг (суралцагчийн картанд, PNG/JPG/WebP, 5MB хүртэл, 16:9 харьцаатай зураг тохиромжтой)</span><input type="file" name="cover" accept="image/png,image/jpeg,image/webp" /></label>
           <label className="fld"><span>Шинэчлэлтийг үзэх хугацаа (хоног)</span><input type="number" name="due_days" defaultValue={30} min={1} /></label>
           <label className="checks"><label><input type="checkbox" name="sequential" /> Модулиудыг дарааллаар нээх</label></label>
           <CourseSetupFields products={products} courses={courses} audience={searchParams.aud === 'internal' ? 'INTERNAL' : 'CUSTOMER'} />

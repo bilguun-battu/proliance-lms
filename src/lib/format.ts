@@ -63,3 +63,10 @@ export const ACTION_LABEL: Record<string, string> = {
   NYC: 'Чадамж хангаагүй (NYC)',
   TRAINER: 'Сургагч багшийн эрх авсан',
 };
+
+// Үргэлжлэх хугацаа: 45 минут, 1 цаг 30 мин, 2 цаг
+export function fmtDuration(min: number) {
+  if (!min) return '';
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h} цаг${m ? ` ${m} мин` : ''}` : `${m} минут`;
+}

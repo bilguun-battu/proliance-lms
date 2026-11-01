@@ -25,7 +25,8 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     // Шалгалтын асуултын зураг: тухайн сургалтад эрхтэй хүнд харагдана
     const examImg = !uses && await one(`SELECT 1 FROM exam_questions q JOIN exam_sections s ON s.id=q.section_id JOIN exams e ON e.id=s.exam_id
        WHERE q.image_file=$1 AND e.course_id = ANY($2) LIMIT 1`, [f.id, await learnerCourseIds(u.id)]);
-    if (!uses && !examImg) return new Response('Энэ файлыг үзэх эрхгүй байна.', { status: 403 });
+    const cover = !uses && !examImg && await one('SELECT 1 FROM courses WHERE cover_file=$1 AND id = ANY($2) LIMIT 1', [f.id, await learnerCourseIds(u.id)]);
+    if (!uses && !examImg && !cover) return new Response('Энэ файлыг үзэх эрхгүй байна.', { status: 403 });
     if (uses && f.mime === 'application/pdf' && !req.headers.get('range')) await logActivity(u.id, uses.course_id, uses.module_key, 'PDF', uses.title);
   }
 

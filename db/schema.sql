@@ -506,3 +506,6 @@ ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
 ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS review_note text;
 ALTER TABLE exam_attempts DROP CONSTRAINT IF EXISTS exam_attempts_run_id_user_id_key;
 CREATE UNIQUE INDEX IF NOT EXISTS exam_attempts_run_user_no ON exam_attempts(run_id, user_id, attempt_no);
+
+-- Сургалтын нүүр зураг (суралцагчийн картанд)
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS cover_file uuid REFERENCES files(id) ON DELETE SET NULL;

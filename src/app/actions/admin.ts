@@ -1,4 +1,5 @@
 'use server';
+import { saveFormFile, IMAGE_TYPES } from '@/lib/files';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import ExcelJS from 'exceljs';
@@ -153,12 +154,15 @@ export async function createCourse(fd: FormData) {
   await requireUser('ADMIN');
   const title = s(fd, 'title');
   if (!title) go('/admin/courses/new', 'Сургалтын нэрийг оруулна уу.', true);
+  const cover = await saveFormFile(fd.get('cover') as File | null, IMAGE_TYPES, 5);
+  if (cover && typeof cover === 'object') go('/admin/courses/new', cover.error, true);
   const id = await tx(async c => {
     const a = aud(s(fd, 'audience'));
     const course = await one<{ id: string }>('INSERT INTO courses (title,description,due_days,sequential,audience,category) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
       [title, s(fd, 'description'), Number(s(fd, 'due_days')) || 30, fd.get('sequential') === 'on', a, cat(s(fd, 'category'), a)], c);
     if (a === 'CUSTOMER') for (const p of fd.getAll('products')) await run('INSERT INTO course_products VALUES ($1,$2)', [course!.id, String(p)], c);
     for (const t of fd.getAll('targets')) await run('INSERT INTO course_trainer_targets VALUES ($1,$2) ON CONFLICT DO NOTHING', [course!.id, String(t)], c);
+    if (typeof cover === 'string') await run('UPDATE courses SET cover_file=$1 WHERE id=$2', [cover, course!.id], c);
     await run(`INSERT INTO course_versions (course_id,number,status) VALUES ($1,1,'DRAFT')`, [course!.id], c);
     return course!.id;
   });
@@ -168,8 +172,12 @@ export async function createCourse(fd: FormData) {
 export async function updateCourse(fd: FormData) {
   await requireUser('ADMIN');
   const id = s(fd, 'id');
+  const cover = await saveFormFile(fd.get('cover') as File | null, IMAGE_TYPES, 5);
+  if (cover && typeof cover === 'object') go(`/admin/courses/${id}`, cover.error, true);
   await tx(async c => {
     const a = aud(s(fd, 'audience'));
+    if (typeof cover === 'string') await run('UPDATE courses SET cover_file=$1 WHERE id=$2', [cover, id], c);
+    else if (fd.get('remove_cover') === 'on') await run('UPDATE courses SET cover_file=NULL WHERE id=$1', [id], c);
     await run('UPDATE courses SET title=$1,description=$2,due_days=$3,sequential=$4,audience=$5,category=$6 WHERE id=$7',
       [s(fd, 'title'), s(fd, 'description'), Number(s(fd, 'due_days')) || 30, fd.get('sequential') === 'on', a, cat(s(fd, 'category')), id], c);
     await run('DELETE FROM course_products WHERE course_id=$1', [id], c);

@@ -5,6 +5,7 @@ import { ACCESS_SQL } from '@/lib/assign';
 import { updateCourse, startDraft, deleteCourse } from '@/app/actions/admin';
 import { courseProgress, FORMAT_LABEL, AUDIENCE_LABEL, CATEGORY_LABEL } from '@/lib/progress';
 import CourseSetupFields from '@/components/CourseSetupFields';
+import CourseCover from '@/components/CourseCover';
 import { Flash, Chip, CourseChip } from '@/components/ui';
 import { fmtDate, fmtDateTime } from '@/lib/format';
 import Submit from '@/components/Submit';
@@ -79,6 +80,12 @@ export default async function CourseAdmin(
           <div className="form">
             <label className="fld full"><span>Нэр</span><input type="text" name="title" defaultValue={c.title} required /></label>
             <label className="fld full"><span>Тайлбар</span><textarea name="description" defaultValue={c.description} /></label>
+            <div className="fld full"><span>Нүүр зураг (суралцагчийн картанд, PNG/JPG/WebP, 5MB хүртэл)</span>
+              <div className="acts" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+                <div style={{ width: 160 }}><CourseCover title={c.title} category={c.category} cover={c.cover_file} /></div>
+                <input type="file" name="cover" accept="image/png,image/jpeg,image/webp" style={{ maxWidth: 320 }} />
+                {c.cover_file && <label className="small"><input type="checkbox" name="remove_cover" /> зургийг устгах</label>}
+              </div></div>
             <label className="fld"><span>Шинэчлэлтийг үзэх хугацаа (хоног)</span><input type="number" name="due_days" defaultValue={c.due_days} min={1} /></label>
             <label className="checks"><label><input type="checkbox" name="sequential" defaultChecked={c.sequential} /> Модулиудыг дарааллаар нээх</label></label>
             <CourseSetupFields products={products} courses={allCourses} audience={c.audience} category={c.category} selfId={c.id} />
