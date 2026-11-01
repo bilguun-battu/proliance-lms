@@ -42,7 +42,7 @@ async function canConnect(url) {
 }
 
 // Суулгацгүй PostgreSQL: npm-ээр ирсэн PostgreSQL програмыг (@embedded-postgres/<платформ>) шууд ажиллуулна
-let pgProc = null;
+let pgStarted = false;
 let pgBin = null;
 async function binaries() {
   const plat = process.platform === 'win32' ? 'windows' : process.platform;
@@ -87,37 +87,30 @@ async function startEmbedded(url) {
     }
   }
   const port = u.port || '5439';
-  await new Promise((resolve, reject) => {
-    pgProc = spawn(pgBin.postgres, ['-D', dir, '-p', port, '-c', 'listen_addresses=127.0.0.1', '-c', 'unix_socket_directories='],
-      { cwd: root, env: { ...process.env, LC_MESSAGES: 'C' }, windowsHide: true });
-    let log = '';
-    const onData = d => {
-      log += d;
-      if (log.includes('ready to accept connections')) resolve();
-    };
-    pgProc.stdout.on('data', onData);
-    pgProc.stderr.on('data', onData);
-    pgProc.on('exit', code => {
-      pgProc = null;
-      if (!log.includes('ready to accept connections')) {
-        console.error(log.trim());
-        reject(new Error(/already in use|Address already/i.test(log)
-          ? `${port} порт эзлэгдсэн байна. Өөр "npm run local" ажиллаж байгаа эсэхийг шалгана уу.`
-          : `PostgreSQL асаж чадсангүй (код ${code}).`));
-      }
-    });
-  });
-  console.log(`PostgreSQL асав: 127.0.0.1:${port}`);
+  // pg_ctl нь Windows-ийн администратор эрхтэй хэрэглэгч дээр ч эрхийг нь бууруулж аюулгүй асаана
+  const st = await exec(pgBin.pg_ctl, ['-D', dir, 'status']);
+  if (st.code === 0) {
+    console.log(`PostgreSQL аль хэдийн ажиллаж байна: 127.0.0.1:${port}`);
+  } else {
+    const logFile = path.join(dir, 'server.log');
+    const r = await exec(pgBin.pg_ctl, ['-D', dir, '-l', logFile, '-w', '-t', '90', '-o',
+      `-p ${port} -c listen_addresses=127.0.0.1 -c unix_socket_directories=`, 'start']);
+    if (r.code !== 0) {
+      const tail = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split(/\r?\n/).slice(-15).join('\n') : '';
+      console.error((r.out + '\n' + tail).trim());
+      throw new Error(/already in use|Address already|бусад/i.test(tail)
+        ? `${port} порт эзлэгдсэн байна. Өөр "npm run local" ажиллаж байгаа эсэхийг шалгана уу.`
+        : 'PostgreSQL асаж чадсангүй (дээрх мессежийг харна уу).');
+    }
+    console.log(`PostgreSQL асав: 127.0.0.1:${port}`);
+  }
+  pgStarted = true;
 }
 
 async function stop() {
-  if (!pgProc) return;
-  const p = pgProc;
-  pgProc = null;
-  const done = new Promise(r => p.once('exit', r));
-  if (process.platform === 'win32') await exec(pgBin.pg_ctl, ['-D', path.join(root, '.pgdata'), 'stop', '-m', 'fast']);
-  else p.kill('SIGINT');
-  await Promise.race([done, new Promise(r => setTimeout(r, 10000))]);
+  if (!pgStarted) return;
+  pgStarted = false;
+  await exec(pgBin.pg_ctl, ['-D', path.join(root, '.pgdata'), 'stop', '-m', 'fast', '-w']);
 }
 
 async function main() {
