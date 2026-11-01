@@ -22,8 +22,11 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       SELECT v.course_id, m.module_key, m.title FROM modules m JOIN course_versions v ON v.id=m.version_id
        WHERE v.status='PUBLISHED' AND (m.video_file=$1 OR m.pdf_file=$1) AND v.course_id = ANY($2) LIMIT 1`,
       [f.id, await learnerCourseIds(u.id)]);
-    if (!uses) return new Response('Энэ файлыг үзэх эрхгүй байна.', { status: 403 });
-    if (f.mime === 'application/pdf' && !req.headers.get('range')) await logActivity(u.id, uses.course_id, uses.module_key, 'PDF', uses.title);
+    // Шалгалтын асуултын зураг: тухайн сургалтад эрхтэй хүнд харагдана
+    const examImg = !uses && await one(`SELECT 1 FROM exam_questions q JOIN exam_sections s ON s.id=q.section_id JOIN exams e ON e.id=s.exam_id
+       WHERE q.image_file=$1 AND e.course_id = ANY($2) LIMIT 1`, [f.id, await learnerCourseIds(u.id)]);
+    if (!uses && !examImg) return new Response('Энэ файлыг үзэх эрхгүй байна.', { status: 403 });
+    if (uses && f.mime === 'application/pdf' && !req.headers.get('range')) await logActivity(u.id, uses.course_id, uses.module_key, 'PDF', uses.title);
   }
 
   const full = path.join(uploadDir(), path.basename(f.path));

@@ -141,26 +141,40 @@ await db.query(`INSERT INTO sessions (course_id,module_key,starts_at,duration_mi
 await db.query(`INSERT INTO sessions (course_id,module_key,starts_at,duration_min,location,link,instructor,seats) VALUES
   ($1,'m4',($2 || ' 15:00+08')::timestamptz,60,'Онлайн','https://meet.google.com/abc-defg-hij','Б. Ганбаатар, инженер',30)`, [c1, day(5)]);
 
-// Жишээ шалгалт: 2 хувилбартай
-const ex = (await db.query(`INSERT INTO exams (course_id,module_key,title,duration_min,pass_score) VALUES ($1,'m3','Урвалж солих дадлагын шалгалт',15,70) RETURNING id`, [c1])).rows[0];
-const bank = {
-  'А хувилбар': [
-    ['Урвалж солихын өмнө юуг шалгах вэ?', ['Дуусах хугацаа', 'Савны өнгө', 'Үнэ'], 0],
-    ['Урвалж солисны дараа юу хийх вэ?', ['Шууд дээж ажиллуулах', 'Чанарын хяналт хийх', 'Төхөөрөмжийг унтраах'], 1],
-    ['Хэрэглэсэн урвалжийн савыг хаана хаях вэ?', ['Энгийн хогт', 'Химийн хог хаягдлын саванд', 'Угаалтуурт'], 1],
-  ],
-  'Б хувилбар': [
-    ['Урвалжийг ямар температурт хадгалах вэ?', ['Үйлдвэрлэгчийн зааврын дагуу', 'Өрөөний температурт үргэлж', 'Хөлдөөж'], 0],
-    ['Урвалж солих үед ямар хамгаалах хэрэгсэл хэрэглэх вэ?', ['Бээлий, нүдний шил', 'Ямар ч хэрэггүй', 'Зөвхөн маск'], 0],
-    ['Урвалж солисон тухай хаана бүртгэх вэ?', ['Бүртгэх шаардлагагүй', 'Төхөөрөмжийн бүртгэлийн дэвтэрт', 'Утсандаа'], 1],
-  ],
-};
-let vp = 1;
-for (const [name, qs] of Object.entries(bank)) {
-  const v = (await db.query('INSERT INTO exam_variants (exam_id,name,position) VALUES ($1,$2,$3) RETURNING id', [ex.id, name, vp++])).rows[0];
-  let qp = 1;
-  for (const q of qs) await db.query('INSERT INTO exam_questions (variant_id,position,text,options,correct_index) VALUES ($1,$2,$3,$4,$5)', [v.id, qp++, q[0], JSON.stringify(q[1]), q[2]]);
+// Жишээ шалгалтын материал: бүлэг бүрээс санамсаргүй асуулт, онооны шатлалтай
+async function seedExam(courseId, moduleKey, title, opts, sections, bands = []) {
+  const e = (await db.query(`INSERT INTO exams (course_id,module_key,title,duration_min,pass_score,check_mode,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [courseId, moduleKey, title, opts.duration ?? 15, opts.pass ?? 70, opts.mode ?? 'AUTO', opts.desc ?? ''])).rows[0];
+  let sp = 1;
+  for (const sec of sections) {
+    const x = (await db.query('INSERT INTO exam_sections (exam_id,position,draw_count,description) VALUES ($1,$2,$3,$4) RETURNING id', [e.id, sp++, sec.draw ?? 0, sec.desc ?? ''])).rows[0];
+    let qp = 1;
+    for (const [text, qtype, options, correct, points = 1] of sec.qs) {
+      await db.query('INSERT INTO exam_questions (section_id,position,text,qtype,options,correct,correct_index,points) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [x.id, qp++, text, qtype, JSON.stringify(options), JSON.stringify(correct), correct[0] ?? null, points]);
+    }
+  }
+  for (const [min, max, label, passed] of bands) await db.query('INSERT INTO exam_bands (exam_id,min_points,max_points,label,passed) VALUES ($1,$2,$3,$4,$5)', [e.id, min, max, label, passed]);
+  return e.id;
 }
+await seedExam(c1, 'm3', 'Урвалж солих дадлагын шалгалт', { duration: 15 }, [
+  { draw: 1, qs: [
+    ['Урвалж солихын өмнө юуг шалгах вэ?', 'RADIO', ['Дуусах хугацаа', 'Савны өнгө', 'Үнэ'], [0]],
+    ['Урвалжийг ямар температурт хадгалах вэ?', 'RADIO', ['Үйлдвэрлэгчийн зааврын дагуу', 'Өрөөний температурт үргэлж', 'Хөлдөөж'], [0]],
+  ] },
+  { draw: 1, qs: [
+    ['Урвалж солисны дараа юу хийх вэ?', 'RADIO', ['Шууд дээж ажиллуулах', 'Чанарын хяналт хийх', 'Төхөөрөмжийг унтраах'], [1]],
+    ['Урвалж солисон тухай хаана бүртгэх вэ?', 'SELECT', ['Бүртгэх шаардлагагүй', 'Төхөөрөмжийн бүртгэлийн дэвтэрт', 'Утсандаа'], [1]],
+  ] },
+  { draw: 1, qs: [
+    ['Хэрэглэсэн урвалжийн савыг хаана хаях вэ?', 'RADIO', ['Энгийн хогт', 'Химийн хог хаягдлын саванд', 'Угаалтуурт'], [1]],
+    ['Урвалж солих үед хэрэглэх хамгаалах хэрэгслийг бүгдийг сонго.', 'CHECKBOX', ['Бээлий', 'Нүдний шил', 'Малгай', 'Хамгаалалтын хувцас'], [0, 1, 3]],
+  ] },
+  { draw: 1, qs: [
+    ['Урвалжийн сав нээгдсэний дараа тогтвортой байх хугацааг шалгах шаардлагатай.', 'YESNO', [], [0]],
+    ['Хугацаа дууссан урвалжийг чанарын хяналт хэвийн бол ашиглаж болно.', 'YESNO', [], [1]],
+  ] },
+], [[0, 2, 'Тэнцээгүй', false], [3, 4, 'Тэнцсэн', true]]);
 
 // Жишээ үнэлгээний маягт: хичээлийн төрөл бүрт
 const evalQs = (online) => [
@@ -255,6 +269,21 @@ const ttt = await internalCourse('Сургагч багш бэлтгэх (Train 
   { title: 'Ур чадвар үнэлэх, санал өгөх', desc: 'Шалгуураар үнэлэх, бүтээлч санал өгөх.', dur: 30, questions: [['VoC-д "Not yet competent" гэж юуг хэлэх вэ?', ['Ажлаас халах', 'Шалгуур бүрэн хангаагүй, дахин үнэлнэ', 'Сургалт дууссан'], 1]] },
 ], 'TTT');
 await db.query('INSERT INTO course_trainer_targets VALUES ($1,$2),($1,$3),($1,$4)', [ttt, ojt, voc, c1]);
+await seedExam(hse, null, 'ХАБЭА — онолын шалгалт', { duration: 20, desc: 'Бүлэг бүрээс санамсаргүй асуулт сонгогдоно. Бичвэр хариултыг ХАБ-ын ажилтан шалгана.' }, [
+  { draw: 2, desc: 'Ерөнхий шаардлага', qs: [
+    ['Агуулахад ачаа өргөхдөө юуг баримтлах вэ?', 'RADIO', ['Нуруугаа бөхийлгөж өргөх', 'Өвдгөө нугалж, нуруугаа шулуун байлгах', 'Аль болох хурдан өргөх'], [1]],
+    ['Ажлын байранд гарсан осол, ослын дөхөлтийг хэнд мэдэгдэх вэ?', 'RADIO', ['Шууд удирдлага болон ХАБ-ын ажилтанд', 'Хэнд ч хэлэх шаардлагагүй', 'Зөвхөн хамт олондоо'], [0]],
+    ['Хувийн хамгаалах хэрэгслийг ажил эхлэхээс өмнө шалгана.', 'YESNO', [], [0]],
+  ] },
+  { draw: 1, desc: 'Цахилгааны аюулгүй ажиллагаа', qs: [
+    ['Тоног төхөөрөмжид засвар хийхийн өмнө заавал хийх алхмуудыг сонго.', 'CHECKBOX', ['Тэжээлийг салгах', 'Түгжиж, шошго зүүх (LOTO)', 'Хүчдэл байхгүйг шалгах', 'Хамгаалалтын бүрээсийг авах'], [0, 1, 2]],
+  ] },
+  { draw: 0, qs: [
+    ['Харилцагчийн эмнэлэгт ажиллахдаа халдвар хамгааллын ямар арга хэмжээ авдгаа товч бичнэ үү.', 'TEXTAREA', [], [], 2],
+  ] },
+], [[0, 3, 'Not yet competent', false], [4, 5, 'Competent', true]]);
+await seedExam(voc, null, 'Гематологийн анализаторын засвар — дадлагын үнэлгээ (VoC)', { duration: 0, mode: 'MANUAL',
+  desc: 'Үнэлэгч ажлын байран дээр шалгуур тус бүрийг ажиглаж Competent / Not yet competent гэж дүгнэнэ.' }, []);
 // Ганбаатар бол туршлагатай инженер: OJT, VoC, гематологийн сургалтын сургагч
 await db.query(`INSERT INTO trainer_quals (user_id,course_id,source) VALUES ($1,$2,'MANUAL'),($1,$3,'MANUAL'),($1,$4,'MANUAL')`, [staff['ganbaatar@proliance.mn'], ojt, voc, c1]);
 // Оноолт: бүх ажилтанд мэдээллийн аюулгүй байдал жил бүр; инженер, агуулахад ХАБЭА жил бүр; инженерүүдэд бүтээгдэхүүний сургалт

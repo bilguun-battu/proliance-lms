@@ -37,7 +37,7 @@ export default async function Sessions(
   const att = await all<any>(`
     SELECT a.session_id, a.status, u.id, u.name, o.name AS org FROM session_attendees a JOIN users u ON u.id=a.user_id LEFT JOIN orgs o ON o.id=u.org_id
      WHERE a.session_id = ANY($1) ORDER BY u.name`, [sessions.map(s => s.id)]);
-  const exams = await all<any>(`SELECT e.id, e.title, e.course_id, e.module_key, e.duration_min FROM exams e ORDER BY e.title`);
+  const exams = await all<any>(`SELECT e.id, e.title, e.course_id, e.module_key, e.duration_min FROM exams e WHERE e.status='ACTIVE' ORDER BY e.title`);
   const runs = await all<any>(`SELECT r.id, r.session_id, r.opened_at, r.closes_at, r.closed_at FROM exam_runs r WHERE r.session_id = ANY($1) ORDER BY r.opened_at`, [sessions.map(s => s.id)]);
   const evalRuns = await all<any>(`SELECT r.id, r.session_id, r.opened_at, r.closes_at, r.closed_at, (SELECT count(*)::int FROM eval_responses x WHERE x.run_id=r.id) AS n
      FROM eval_runs r WHERE r.session_id = ANY($1) ORDER BY r.opened_at`, [sessions.map(s => s.id)]);
@@ -97,7 +97,7 @@ export default async function Sessions(
                     </div>)}
                     {ex.length ? <form action={openExamRun} className="acts" style={{ justifyContent: 'flex-start' }}>
                       <input type="hidden" name="session_id" value={s.id} />
-                      <select name="exam_id" style={{ width: 'auto' }}>{ex.map(e => <option key={e.id} value={e.id}>{e.title} · {e.duration_min} мин</option>)}</select>
+                      <select name="exam_id" style={{ width: 'auto' }}>{ex.map(e => <option key={e.id} value={e.id}>{e.title}{e.duration_min > 0 ? ` · ${e.duration_min} мин` : ""}</option>)}</select>
                       <Submit className="btn sm">QR шалгалт эхлүүлэх</Submit>
                     </form> : <span className="small muted">Энэ модульд шалгалт үүсгээгүй байна. <Link className="link" href="/admin/exams">Шалгалт үүсгэх</Link></span>}
                   </div>;

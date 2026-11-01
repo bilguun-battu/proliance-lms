@@ -437,3 +437,72 @@ CREATE TABLE IF NOT EXISTS certificates (
   revoked      boolean NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS certificates_user_idx ON certificates(user_id, issued_at DESC);
+
+-- ===== Шалгалтын материал: бүлэг, асуултын төрөл, онооны шатлал, гараар шалгах =====
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS num serial;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'ACTIVE';          -- ACTIVE / HIDDEN
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS check_mode text NOT NULL DEFAULT 'AUTO';        -- AUTO / MANUAL
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS show_result text NOT NULL DEFAULT 'NOW';        -- NOW / LATER
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS attempts_allowed int NOT NULL DEFAULT 1;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS description text NOT NULL DEFAULT '';
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS eval_template_id uuid REFERENCES eval_templates(id) ON DELETE SET NULL;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS file_id uuid REFERENCES files(id) ON DELETE SET NULL;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
+-- Бүлэг: тухайн бүлгээс санамсаргүйгээр draw_count асуулт сонгоно (0 = бүгд)
+CREATE TABLE IF NOT EXISTS exam_sections (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  exam_id      uuid NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+  position     int  NOT NULL,
+  draw_count   int  NOT NULL DEFAULT 0,
+  description  text NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS exam_sections_exam_idx ON exam_sections(exam_id, position);
+
+ALTER TABLE exam_questions ADD COLUMN IF NOT EXISTS section_id uuid REFERENCES exam_sections(id) ON DELETE CASCADE;
+ALTER TABLE exam_questions ADD COLUMN IF NOT EXISTS qtype text NOT NULL DEFAULT 'RADIO';   -- RADIO CHECKBOX SELECT TEXT TEXTAREA YESNO
+ALTER TABLE exam_questions ADD COLUMN IF NOT EXISTS correct jsonb;                          -- зөв хариултын дугаарууд [0,2]
+ALTER TABLE exam_questions ADD COLUMN IF NOT EXISTS image_file uuid REFERENCES files(id) ON DELETE SET NULL;
+ALTER TABLE exam_questions ADD COLUMN IF NOT EXISTS points int NOT NULL DEFAULT 1;
+ALTER TABLE exam_questions ALTER COLUMN variant_id DROP NOT NULL;
+ALTER TABLE exam_questions ALTER COLUMN correct_index DROP NOT NULL;
+UPDATE exam_questions SET correct = jsonb_build_array(correct_index) WHERE correct IS NULL AND correct_index IS NOT NULL;
+
+-- Хуучин "хувилбар"-ыг бүлэг болгоно: хувилбар бүрийн N-р асуултууд нэг бүлэгт орж, тэндээс 1-ийг сонгоно
+DO $$
+DECLARE e record; p int; sid uuid;
+BEGIN
+  FOR e IN SELECT DISTINCT v.exam_id FROM exam_variants v JOIN exam_questions q ON q.variant_id=v.id WHERE q.section_id IS NULL LOOP
+    FOR p IN SELECT DISTINCT q.position FROM exam_questions q JOIN exam_variants v ON v.id=q.variant_id
+              WHERE v.exam_id=e.exam_id AND q.section_id IS NULL ORDER BY 1 LOOP
+      INSERT INTO exam_sections (exam_id, position, draw_count)
+        VALUES (e.exam_id, (SELECT coalesce(max(position),0)+1 FROM exam_sections WHERE exam_id=e.exam_id), 1) RETURNING id INTO sid;
+      UPDATE exam_questions q SET section_id=sid FROM exam_variants v
+       WHERE v.id=q.variant_id AND v.exam_id=e.exam_id AND q.position=p AND q.section_id IS NULL;
+    END LOOP;
+  END LOOP;
+END $$;
+
+-- Онооны шатлал: авсан оноо (min..max) → дүн (жишээ нь Competent / Not yet competent)
+CREATE TABLE IF NOT EXISTS exam_bands (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  exam_id     uuid NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+  min_points  numeric NOT NULL,
+  max_points  numeric NOT NULL,
+  label       text NOT NULL,
+  passed      boolean NOT NULL DEFAULT false
+);
+
+ALTER TABLE exam_attempts ALTER COLUMN variant_id DROP NOT NULL;
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS attempt_no int NOT NULL DEFAULT 1;
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS points numeric;
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS max_points numeric;
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS result_label text;
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS review_status text NOT NULL DEFAULT 'NONE';   -- NONE / PENDING / DONE
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS marks jsonb;                                   -- асуулт бүрийн авсан оноо
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS reviewer_id uuid REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
+ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS review_note text;
+ALTER TABLE exam_attempts DROP CONSTRAINT IF EXISTS exam_attempts_run_id_user_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS exam_attempts_run_user_no ON exam_attempts(run_id, user_id, attempt_no);

@@ -17,5 +17,5 @@ export default function LiveRefresh({ until, active }: { until: string; active: 
   if (!active) return null;
   if (left === 0) return <span className="chip c-crit">Хугацаа дууслаа</span>;
   const m = Math.floor(left / 60000), s = Math.floor((left % 60000) / 1000);
-  return <span className="chip c-ok" style={{ fontSize: '1rem', padding: '4px 14px' }}>Холбоос хаагдахад: {m}:{String(s).padStart(2, '0')}</span>;
+  return <span suppressHydrationWarning className="chip c-ok" style={{ fontSize: '1rem', padding: '4px 14px' }}>Холбоос хаагдахад: {m}:{String(s).padStart(2, '0')}</span>;
 }
