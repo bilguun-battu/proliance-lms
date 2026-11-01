@@ -1,0 +1,39 @@
+# Серверт ажиллуулах: cp .env.example .env (засна) → docker compose up -d
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: proliance
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-proliance}
+      POSTGRES_DB: proliance_lms
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proliance -d proliance_lms"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    # GitHub-ийн бэлэн image; өөрөө бүтээх бол: docker compose up -d --build
+    image: ghcr.io/bilguun-battu/proliance-lms:latest
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://proliance:${DB_PASSWORD:-proliance}@db:5432/proliance_lms
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:

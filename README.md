@@ -1,8 +1,47 @@
-# Proliance сургалтын систем (Хувилбар А)
+# Proliance сургалтын систем
 
 Proliance-ийн харилцагч байгууллагын ажилтнууд болон Proliance-ийн өөрийн ажилтнуудад (дотоод сургалт) зориулсан бүрэн сургалтын систем: цахим, танхимын (биечлэн), онлайн шууд хичээл, шалгалт, үнэлгээ, заавал хамрагдах сургалтын биелэлтийг нэг дор удирдана. proliance.mn сайтын загварт тааруулсан.
 
 **Технологи:** Next.js 14 (App Router), PostgreSQL, Node.js 20+.
+
+[![CI](https://github.com/bilguun-battu/proliance-lms/actions/workflows/ci.yml/badge.svg)](https://github.com/bilguun-battu/proliance-lms/actions/workflows/ci.yml)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/bilguun-battu/proliance-lms?quickstart=1)
+
+## GitHub-аас ажиллуулах
+
+### 1. Хөтөч дээр шууд туршиж үзэх (GitHub Codespaces)
+
+Дээрх **Open in GitHub Codespaces** товчийг дарна (эсвэл репо → **Code** → **Codespaces** → **Create codespace on main**). Ойролцоогоор 3–5 минутын дараа PostgreSQL, жишээ өгөгдөлтэй систем асаж, 3000 портын хаяг хөтөч дээр нээгдэнэ. Юу ч суулгах шаардлагагүй.
+
+- Админ: `admin@proliance.mn` / `Proliance2026!`
+- Жишээ хэрэглэгчид (нууц үг `Test1234!`): `enkhjin@example.mn` (харилцагч), `coordinator@example.mn` (хариуцагч), `ganbaatar@proliance.mn` (Proliance инженер, сургагч), `tuguldur@proliance.mn` (шинэ инженер)
+- Сервер зогссон бол терминалд: `npm run dev`
+- Бусдад үзүүлэх бол **Ports** таб → 3000 → **Port Visibility → Public**.
+
+Codespaces нь туршилт, танилцуулгад зориулсан. Ашиглалтын серверт доорх Docker аргыг хэрэглэнэ.
+
+### 2. Серверт байршуулах (Docker)
+
+Серверт Docker, Docker Compose суусан байхад:
+
+```bash
+git clone https://github.com/bilguun-battu/proliance-lms.git
+cd proliance-lms
+cp .env.example .env      # AUTH_SECRET, APP_URL, ADMIN_PASSWORD, SMTP, SMS-ийг бөглөнө
+docker compose up -d      # GitHub-д бүтээгдсэн бэлэн image-ийг татаж, PostgreSQL-тэй асаана
+```
+
+- Систем `http://сервер:3000` дээр ажиллана (`APP_PORT=8080` гэж өөрчилж болно). proliance.mn-ий nginx-ээс энэ порт руу дамжуулна (доор "proliance.mn дээр байршуулах").
+- Эхлэх бүрт хүснэгтүүд автоматаар шинэчлэгдэж, админ үүснэ. Жишээ өгөгдөл хэрэгтэй бол `.env`-д `SEED_DEMO=1`.
+- Шинэ хувилбар гарахад: `git pull && docker compose pull && docker compose up -d`.
+- Өгөгдөл `pgdata`, байршуулсан видео/PDF `uploads` гэсэн Docker volume-д хадгалагдана. Нөөцлөх: `docker compose exec db pg_dump -U proliance proliance_lms > backup.sql`.
+- Image-ийг өөрөө бүтээх бол: `docker compose up -d --build`. `proliance.mn/surgalt` гэх мэт дэд хаяг дээр бол `docker compose build --build-arg NEXT_PUBLIC_BASE_PATH=/surgalt`.
+- Репо хаалттай бол image ч хаалттай: серверт эхлээд `docker login ghcr.io -u bilguun-battu` (GitHub token, `read:packages` эрхтэй).
+
+### 3. Автомат шалгалт (GitHub Actions)
+
+`main` руу push хийх бүрт: төрөл шалгаж, өгөгдлийн сан үүсгэж, бүтээж, серверийг асааж шалгана. Амжилттай бол Docker image `ghcr.io/bilguun-battu/proliance-lms:latest` болж нийтлэгдэнэ.
+
 
 ## Боломжууд
 

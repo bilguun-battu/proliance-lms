@@ -1,0 +1,15 @@
+{
+  "name": "Proliance сургалтын систем",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "Proliance сургалт", "onAutoForward": "openBrowser" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postAttachCommand": { "server": "npm run dev" },
+  "customizations": {
+    "codespaces": { "openFiles": ["README.md"] }
+  }
+}

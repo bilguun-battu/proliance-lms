@@ -17,7 +17,7 @@ export async function createSession(u: SessionUser) {
     .setIssuedAt()
     .setExpirationTime('12h')
     .sign(secret());
-  cookies().set(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 12 });
+  cookies().set(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: (process.env.APP_URL || '').startsWith('https://'), path: '/', maxAge: 60 * 60 * 12 });
 }
 
 export function destroySession() {

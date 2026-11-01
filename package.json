@@ -1,5 +1,5 @@
 {
-  "name": "proliance-lms-a",
+  "name": "proliance-lms",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "db:migrate": "node scripts/migrate.mjs",
-    "db:seed": "node scripts/seed.mjs"
+    "db:seed": "node scripts/seed.mjs",
+    "db:wait": "node scripts/wait-db.mjs"
   },
   "dependencies": {
     "bcryptjs": "2.4.3",
@@ -30,5 +31,8 @@
     "@types/react": "18.3.11",
     "@types/react-dom": "18.3.1",
     "typescript": "5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
