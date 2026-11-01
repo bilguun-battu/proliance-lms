@@ -5,7 +5,8 @@ import { Flash, Chip } from '@/components/ui';
 import { FORMAT_LABEL } from '@/lib/progress';
 import Submit from '@/components/Submit';
 
-export default async function Evaluations({ searchParams }: { searchParams: { ok?: string; err?: string } }) {
+export default async function Evaluations(props: { searchParams: Promise<{ ok?: string; err?: string }> }) {
+  const searchParams = await props.searchParams;
   const courses = await all<any>('SELECT id, title FROM courses ORDER BY title');
   const ts = await all<any>(`
     SELECT t.*, c.title AS course, (SELECT count(*)::int FROM eval_questions q WHERE q.template_id=t.id) AS qn,

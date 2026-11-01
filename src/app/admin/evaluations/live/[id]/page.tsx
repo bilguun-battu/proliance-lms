@@ -13,7 +13,11 @@ import EvalResults from '@/components/EvalResults';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export default async function LiveEval({ params, searchParams }: { params: { id: string }; searchParams: { ok?: string; err?: string } }) {
+export default async function LiveEval(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; err?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const r = await one<any>(`
     SELECT r.*, t.name, t.anonymous, c.title AS course, s.starts_at AS session_at, s.location
       FROM eval_runs r JOIN eval_templates t ON t.id=r.template_id LEFT JOIN courses c ON c.id=r.course_id LEFT JOIN sessions s ON s.id=r.session_id WHERE r.id=$1`, [params.id]);

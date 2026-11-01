@@ -9,7 +9,11 @@ import { complianceRows, COMP_LABEL, COMPLIANT_SET } from '@/lib/compliance';
 
 const COL: Record<string, string> = { todo: 'var(--crit)', retake: 'var(--warn)', newmod: 'var(--info)' };
 
-export default async function CoursePage({ params, searchParams }: { params: { id: string }; searchParams: { all?: string } }) {
+export default async function CoursePage(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ all?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const u = await requireUser('LEARNER', 'COORDINATOR');
   if (!(await canAccessCourse(u.id, params.id))) notFound();
   const c = await one<any>('SELECT * FROM courses WHERE id=$1', [params.id]);

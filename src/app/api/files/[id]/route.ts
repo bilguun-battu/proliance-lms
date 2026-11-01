@@ -10,7 +10,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // Нэвтэрсэн, тухайн сургалтад эрхтэй хэрэглэгчид л файлыг урсгалаар өгнө (Range дэмжинэ)
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const u = await getSession();
   if (!u) return new Response('Нэвтэрнэ үү.', { status: 401 });
   const f = await one<any>('SELECT * FROM files WHERE id=$1', [params.id]);

@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic';
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 // Гэрчилгээ: эзэн, админ, тухайн байгууллагын хариуцагч харж, хэвлэнэ
-export default async function CertPage({ params }: { params: { id: string } }) {
+export default async function CertPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const me = await requireUser();
   const c = await one<Certificate & { org_id: string | null }>(
     'SELECT c.*, u.org_id FROM certificates c JOIN users u ON u.id=c.user_id WHERE c.id=$1', [params.id]);

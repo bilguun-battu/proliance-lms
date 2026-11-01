@@ -12,7 +12,10 @@ import Submit from '@/components/Submit';
 import AttendanceForm from '@/components/AttendanceForm';
 import ModulePicker from './ModulePicker';
 
-export default async function Sessions({ searchParams }: { searchParams: { ok?: string; err?: string; show?: string; open?: string; aud?: string } }) {
+export default async function Sessions(
+  props: { searchParams: Promise<{ ok?: string; err?: string; show?: string; open?: string; aud?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const past = searchParams.show === 'past';
   const aud = audOf(searchParams.aud);
   const A = AUD_DB(aud);

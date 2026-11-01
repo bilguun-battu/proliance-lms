@@ -16,6 +16,24 @@ if (major < 18 || (major === 18 && minor < 18)) {
   process.exit(1);
 }
 
+// Суулгасан сангийн хувилбар package.json-тэй таарч байгааг шалгана (жишээ нь "npm audit fix --force" өөрчилсөн бол)
+{
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const bad = [];
+  for (const name of ['next', 'react', 'react-dom']) {
+    const want = pkg.dependencies?.[name];
+    const file = path.join(root, 'node_modules', name, 'package.json');
+    const have = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).version : null;
+    if (want && have !== want.replace(/^[\^~]/, '')) bad.push(`${name}: ${have || 'суугаагүй'} (хэрэгтэй ${want})`);
+  }
+  if (bad.length) {
+    console.error('✖ Суулгасан сангийн хувилбар таарахгүй байна:\n  ' + bad.join('\n  '));
+    console.error('  Засах: "npm install" ажиллуулна уу (хэрэв засагдахгүй бол node_modules хавтсыг устгаад дахин "npm install").');
+    console.error('  Анхаар: "npm audit fix --force" бүү ажиллуулаарай, энэ нь сангуудыг тохирохгүй хувилбар руу сольдог.');
+    process.exit(1);
+  }
+}
+
 function readEnv() {
   const env = {};
   const file = path.join(root, '.env');

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Нэвтрээгүй хэрэглэгчийг нэвтрэх хуудас руу шилжүүлнэ. Эрхийн нарийн шалгалтыг хуудас бүр хийнэ.
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   if (!req.cookies.get('pl_session')) {
     const url = req.nextUrl.clone();
     const next = req.nextUrl.pathname;

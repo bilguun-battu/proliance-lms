@@ -9,7 +9,11 @@ import { FORMAT_LABEL, CATEGORY_FORMATS } from '@/lib/progress';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export default async function ModuleEdit({ params, searchParams }: { params: { id: string; moduleId: string }; searchParams: { ok?: string; err?: string } }) {
+export default async function ModuleEdit(
+  props: { params: Promise<{ id: string; moduleId: string }>; searchParams: Promise<{ ok?: string; err?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const m = await one<any>(`
     SELECT m.*, v.course_id, v.number, v.status, c.title AS course, c.category FROM modules m
       JOIN course_versions v ON v.id=m.version_id JOIN courses c ON c.id=v.course_id

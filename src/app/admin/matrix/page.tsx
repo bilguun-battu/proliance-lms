@@ -7,7 +7,8 @@ import { addPosition, deletePosition, saveMatrix } from '@/app/actions/matrix';
 
 const OPTS: [string, string][] = [['', '—'], ['0', 'Нэг удаа'], ['12', '12 сар тутам'], ['24', '24 сар тутам'], ['36', '36 сар тутам']];
 
-export default async function Matrix({ searchParams }: { searchParams: { ok?: string; err?: string } }) {
+export default async function Matrix(props: { searchParams: Promise<{ ok?: string; err?: string }> }) {
+  const searchParams = await props.searchParams;
   const positions = await all<any>(`
     SELECT p.*, (SELECT count(*)::int FROM users u JOIN orgs o ON o.id=u.org_id WHERE u.position=p.name AND u.active AND o.is_internal) AS people
       FROM positions p ORDER BY p.department NULLS LAST, p.name`);

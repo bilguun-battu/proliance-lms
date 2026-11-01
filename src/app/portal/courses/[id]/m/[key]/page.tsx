@@ -14,7 +14,11 @@ import { Flash } from '@/components/ui';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export default async function ModulePage({ params, searchParams }: { params: { id: string; key: string }; searchParams: { ok?: string; err?: string } }) {
+export default async function ModulePage(
+  props: { params: Promise<{ id: string; key: string }>; searchParams: Promise<{ ok?: string; err?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const u = await requireUser('LEARNER', 'COORDINATOR');
   if (!(await canAccessCourse(u.id, params.id))) notFound();
   const c = await one<any>('SELECT id, title FROM courses WHERE id=$1', [params.id]);

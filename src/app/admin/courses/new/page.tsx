@@ -4,7 +4,10 @@ import { Flash } from '@/components/ui';
 import Submit from '@/components/Submit';
 import CourseSetupFields from '@/components/CourseSetupFields';
 
-export default async function NewCourse({ searchParams }: { searchParams: { ok?: string; err?: string; aud?: string } }) {
+export default async function NewCourse(
+  props: { searchParams: Promise<{ ok?: string; err?: string; aud?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const products = await all<any>('SELECT id, code, name FROM products ORDER BY code');
   const courses = await all<any>('SELECT id, title, audience FROM courses ORDER BY audience, title');
   return (

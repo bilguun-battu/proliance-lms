@@ -12,7 +12,8 @@ import Submit from '@/components/Submit';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export default async function OrgHome({ searchParams }: { searchParams: { ok?: string; err?: string } }) {
+export default async function OrgHome(props: { searchParams: Promise<{ ok?: string; err?: string }> }) {
+  const searchParams = await props.searchParams;
   const u = await requireUser('COORDINATOR');
   const org = await one<any>('SELECT name FROM orgs WHERE id=$1', [u.orgId]);
   const people = await all<any>(`SELECT id, name, email, position, (password_hash IS NOT NULL) AS activated FROM users WHERE org_id=$1 AND active ORDER BY name`, [u.orgId]);

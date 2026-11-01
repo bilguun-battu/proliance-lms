@@ -13,7 +13,11 @@ import CopyLink from '@/components/CopyLink';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export default async function LiveExam({ params, searchParams }: { params: { id: string }; searchParams: { ok?: string; err?: string } }) {
+export default async function LiveExam(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; err?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const r = await one<any>(`
     SELECT r.*, e.title, e.pass_score, e.duration_min, e.id AS exam_id, e.course_id, c.title AS course, s.starts_at AS session_at, s.location
       FROM exam_runs r JOIN exams e ON e.id=r.exam_id JOIN courses c ON c.id=e.course_id LEFT JOIN sessions s ON s.id=r.session_id WHERE r.id=$1`, [params.id]);

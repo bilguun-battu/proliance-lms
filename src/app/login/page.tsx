@@ -4,7 +4,8 @@ import LoginForm from './LoginForm';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export default async function LoginPage({ searchParams }: { searchParams: { ok?: string; next?: string } }) {
+export default async function LoginPage(props: { searchParams: Promise<{ ok?: string; next?: string }> }) {
+  const searchParams = await props.searchParams;
   const u = await getSession();
   if (u) redirect(searchParams.next?.startsWith('/') && !searchParams.next.startsWith('//') ? searchParams.next : homeFor(u.role));
   return (

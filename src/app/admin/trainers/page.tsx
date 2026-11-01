@@ -6,7 +6,8 @@ import { AUDIENCE_LABEL } from '@/lib/progress';
 import { fmtDate } from '@/lib/format';
 import Submit from '@/components/Submit';
 
-export default async function Trainers({ searchParams }: { searchParams: { ok?: string; err?: string } }) {
+export default async function Trainers(props: { searchParams: Promise<{ ok?: string; err?: string }> }) {
+  const searchParams = await props.searchParams;
   const quals = await all<any>(`
     SELECT q.*, u.name, u.position, o.name AS org, c.title, c.audience FROM trainer_quals q JOIN users u ON u.id=q.user_id
       LEFT JOIN orgs o ON o.id=u.org_id JOIN courses c ON c.id=q.course_id ORDER BY u.name, c.title`);

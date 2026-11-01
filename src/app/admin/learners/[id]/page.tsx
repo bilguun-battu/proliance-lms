@@ -6,7 +6,11 @@ import Submit from '@/components/Submit';
 import ProfileView from '@/components/ProfileView';
 import { changePosition } from '@/app/actions/admin';
 
-export default async function LearnerProfile({ params, searchParams }: { params: { id: string }; searchParams: { ok?: string; err?: string } }) {
+export default async function LearnerProfile(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; err?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const u = await one<any>('SELECT u.*, coalesce(o.is_internal,false) AS internal FROM users u LEFT JOIN orgs o ON o.id=u.org_id WHERE u.id=$1', [params.id]);
   if (!u) notFound();
   const positions = await all<any>('SELECT name, department FROM positions ORDER BY department NULLS LAST, name');

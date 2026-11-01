@@ -1,12 +1,12 @@
 import 'server-only';
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 import { all, run } from './db';
 import { appUrl } from './auth';
 import { courseProgress, REQUIRED } from './progress';
 import { fmtDate, fmtSession } from './format';
 import { ACCESS_SQL } from './assign';
 
-let transport: nodemailer.Transporter | null = null;
+let transport: Transporter | null = null;
 function mailer() {
   if (!process.env.SMTP_HOST) return null;
   transport ??= nodemailer.createTransport({

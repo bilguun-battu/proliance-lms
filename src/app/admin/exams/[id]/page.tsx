@@ -6,7 +6,11 @@ import { Flash, Chip } from '@/components/ui';
 import { fmtDateTime } from '@/lib/format';
 import Submit from '@/components/Submit';
 
-export default async function ExamEdit({ params, searchParams }: { params: { id: string }; searchParams: { ok?: string; err?: string; v?: string } }) {
+export default async function ExamEdit(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; err?: string; v?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const e = await one<any>(`SELECT e.*, c.title AS course FROM exams e JOIN courses c ON c.id=e.course_id WHERE e.id=$1`, [params.id]);
   if (!e) notFound();
   const variants = await all<any>(`SELECT v.*, (SELECT count(*)::int FROM exam_questions q WHERE q.variant_id=v.id) AS n FROM exam_variants v WHERE exam_id=$1 ORDER BY position`, [e.id]);

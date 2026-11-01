@@ -9,7 +9,11 @@ const FORMAT_OPTION: Record<string, string> = { ELEARN: 'Цахим (видео,
 import Submit from '@/components/Submit';
 import AutoForm from '@/components/AutoForm';
 
-export default async function Draft({ params, searchParams }: { params: { id: string }; searchParams: { ok?: string; err?: string } }) {
+export default async function Draft(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; err?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const c = await one<any>('SELECT * FROM courses WHERE id=$1', [params.id]);
   if (!c) notFound();
   const d = await one<any>(`SELECT * FROM course_versions WHERE course_id=$1 AND status='DRAFT'`, [c.id]);

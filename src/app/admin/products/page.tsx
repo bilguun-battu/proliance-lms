@@ -4,7 +4,8 @@ import { CATEGORIES } from '@/lib/format';
 import { Flash } from '@/components/ui';
 import Submit from '@/components/Submit';
 
-export default async function Products({ searchParams }: { searchParams: { ok?: string; err?: string } }) {
+export default async function Products(props: { searchParams: Promise<{ ok?: string; err?: string }> }) {
+  const searchParams = await props.searchParams;
   const rows = await all<any>(`
     SELECT p.*, (SELECT count(*)::int FROM course_products cp WHERE cp.product_id=p.id) AS courses,
                 (SELECT count(*)::int FROM org_products op WHERE op.product_id=p.id) AS orgs

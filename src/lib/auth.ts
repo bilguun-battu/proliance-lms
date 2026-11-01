@@ -17,15 +17,15 @@ export async function createSession(u: SessionUser) {
     .setIssuedAt()
     .setExpirationTime('12h')
     .sign(secret());
-  cookies().set(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: (process.env.APP_URL || '').startsWith('https://'), path: '/', maxAge: 60 * 60 * 12 });
+  (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: (process.env.APP_URL || '').startsWith('https://'), path: '/', maxAge: 60 * 60 * 12 });
 }
 
-export function destroySession() {
-  cookies().delete(COOKIE);
+export async function destroySession() {
+  (await cookies()).delete(COOKIE);
 }
 
 export async function getSession(): Promise<SessionUser | null> {
-  const token = cookies().get(COOKIE)?.value;
+  const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());

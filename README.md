@@ -2,7 +2,7 @@
 
 Proliance-ийн харилцагч байгууллагын ажилтнууд болон Proliance-ийн өөрийн ажилтнуудад (дотоод сургалт) зориулсан бүрэн сургалтын систем: цахим, танхимын (биечлэн), онлайн шууд хичээл, шалгалт, үнэлгээ, заавал хамрагдах сургалтын биелэлтийг нэг дор удирдана. proliance.mn сайтын загварт тааруулсан.
 
-**Технологи:** Next.js 14 (App Router), PostgreSQL, Node.js 20+.
+**Технологи:** Next.js 16 (App Router), React 19, PostgreSQL, Node.js 20+.
 
 [![CI](https://github.com/bilguun-battu/proliance-lms/actions/workflows/ci.yml/badge.svg)](https://github.com/bilguun-battu/proliance-lms/actions/workflows/ci.yml)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/bilguun-battu/proliance-lms?quickstart=1)
@@ -224,7 +224,8 @@ npm start                         # http://localhost:3000
 | `ECONNREFUSED ...:5432` | PostgreSQL ажиллахгүй байна. `npm run local` ашиглана. |
 | `password authentication failed` | `.env` доторх DATABASE_URL-ийн хэрэглэгч, нууц үг буруу. |
 | Нэвтэрсний дараа дахин нэвтрэх хуудас гарна | `APP_URL` https хаягтай байна. Компьютер дээр `http://localhost:3000` байх ёстой (`npm run local` өөрөө засна). |
-| `Node.js ... хуучин байна` | Node.js 20+ суулгана. |
+| `Node.js ... хуучин байна` | Node.js 20.9+ суулгана. |
+| `cookies(...).get is not a function`, `Суулгасан сангийн хувилбар таарахгүй` | `npm audit fix --force` ажиллуулснаас сангууд өөр хувилбар руу солигдсон. `node_modules` хавтсыг устгаад `npm install`, дараа нь `npm run local`. `npm audit fix --force`-ыг бүү ажиллуулаарай. |
 | `Port 3000 is in use` | 3000 портыг өөр програм эзэлсэн. Түүнийг хаах эсвэл `.env`-д `APP_URL=http://localhost:3001`. |
 
 Жишээ өгөгдөлтэй бол дараах эрхээр туршина:

@@ -5,7 +5,8 @@ import { one } from '@/lib/db';
 import ProfileView from '@/components/ProfileView';
 
 // Байгууллагын хариуцагч өөрийн ажилтны профайлыг харна
-export default async function OrgPerson({ params }: { params: { id: string } }) {
+export default async function OrgPerson(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const me = await requireUser('COORDINATOR');
   const u = await one<any>('SELECT id FROM users WHERE id=$1 AND org_id=$2', [params.id, me.orgId]);
   if (!u) notFound();

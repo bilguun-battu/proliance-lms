@@ -1,11 +1,11 @@
 'use client';
 import Link from 'next/link';
-import { useFormState } from 'react-dom';
+import { useActionState } from 'react';
 import { forgotAction } from '../actions/auth';
 import Submit from '@/components/Submit';
 
 export default function ForgotPage() {
-  const [state, action] = useFormState(forgotAction, {});
+  const [state, action] = useActionState(forgotAction, {});
   return (
     <div className="auth">
       <div className="panel">

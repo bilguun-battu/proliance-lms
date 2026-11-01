@@ -9,7 +9,11 @@ import { fmtDateTime } from '@/lib/format';
 import Submit from '@/components/Submit';
 import EvalResults from '@/components/EvalResults';
 
-export default async function TemplateEdit({ params, searchParams }: { params: { id: string }; searchParams: { ok?: string; err?: string } }) {
+export default async function TemplateEdit(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; err?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const t = await one<any>('SELECT * FROM eval_templates WHERE id=$1', [params.id]);
   if (!t) notFound();
   const courses = await all<any>('SELECT id, title FROM courses ORDER BY title');

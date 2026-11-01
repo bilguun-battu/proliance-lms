@@ -12,7 +12,10 @@ import AudTabs, { audOf, AUD_DB } from '@/components/AudTabs';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export default async function Compliance({ searchParams }: { searchParams: { ok?: string; err?: string; course?: string; department?: string; status?: string; aud?: string } }) {
+export default async function Compliance(
+  props: { searchParams: Promise<{ ok?: string; err?: string; course?: string; department?: string; status?: string; aud?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const aud = audOf(searchParams.aud ?? 'internal');
   const A = AUD_DB(aud);
   const courses = await all<any>(`SELECT c.id, c.title, c.category FROM courses c WHERE c.audience=$1 AND EXISTS (SELECT 1 FROM course_versions v WHERE v.course_id=c.id AND v.status='PUBLISHED') ORDER BY c.category, c.title`, [A]);

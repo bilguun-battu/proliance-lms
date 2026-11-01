@@ -4,7 +4,8 @@ import { saveOrg, deleteOrg } from '@/app/actions/admin';
 import { Flash } from '@/components/ui';
 import Submit from '@/components/Submit';
 
-export default async function Orgs({ searchParams }: { searchParams: { ok?: string; err?: string } }) {
+export default async function Orgs(props: { searchParams: Promise<{ ok?: string; err?: string }> }) {
+  const searchParams = await props.searchParams;
   const products = await all<any>('SELECT id, code, name FROM products ORDER BY code');
   const orgs = await all<any>(`
     SELECT o.*, coalesce(array_agg(op.product_id) FILTER (WHERE op.product_id IS NOT NULL), '{}') AS products,

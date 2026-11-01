@@ -22,7 +22,8 @@ function Frame({ children, name }: { children: React.ReactNode; name?: string })
   );
 }
 
-export default async function ExamPage({ params }: { params: { token: string } }) {
+export default async function ExamPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const u = await getSession();
   if (!u) redirect(`/login?next=${encodeURIComponent(`/exam/${params.token}`)}`);
   const r = await runByToken(params.token);

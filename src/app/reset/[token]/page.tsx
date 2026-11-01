@@ -1,10 +1,12 @@
-'use client';
-import { useFormState } from 'react-dom';
+'use client';;
+import { use } from "react";
+import { useActionState } from 'react';
 import { resetAction } from '../../actions/auth';
 import Submit from '@/components/Submit';
 
-export default function ResetPage({ params }: { params: { token: string } }) {
-  const [state, action] = useFormState(resetAction, {});
+export default function ResetPage(props: { params: Promise<{ token: string }> }) {
+  const params = use(props.params);
+  const [state, action] = useActionState(resetAction, {});
   return (
     <div className="auth">
       <div className="panel">

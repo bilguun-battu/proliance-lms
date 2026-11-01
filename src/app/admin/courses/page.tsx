@@ -6,7 +6,10 @@ import { CATEGORY_LABEL, CAT_TONE, CATEGORIES } from '@/lib/progress';
 import AudTabs, { audOf, AUD_DB } from '@/components/AudTabs';
 
 
-export default async function Courses({ searchParams }: { searchParams: { ok?: string; err?: string; aud?: string; cat?: string } }) {
+export default async function Courses(
+  props: { searchParams: Promise<{ ok?: string; err?: string; aud?: string; cat?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const aud = audOf(searchParams.aud);
   const counts = Object.fromEntries((await all<any>(`SELECT audience, count(*)::int AS n FROM courses GROUP BY 1`)).map(r => [r.audience === 'INTERNAL' ? 'internal' : 'customer', r.n]));
   const rows = await all<any>(`

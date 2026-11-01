@@ -6,7 +6,8 @@ import { fmtDateTime } from '@/lib/format';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const u = await getSession();
   if (!u || u.role !== 'ADMIN') return new Response('Эрхгүй.', { status: 403 });
   const r = await one<any>('SELECT r.*, e.title FROM exam_runs r JOIN exams e ON e.id=r.exam_id WHERE r.id=$1', [params.id]);

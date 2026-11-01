@@ -5,7 +5,8 @@ import { Flash, Chip } from '@/components/ui';
 import { FORMAT_LABEL } from '@/lib/progress';
 import Submit from '@/components/Submit';
 
-export default async function Exams({ searchParams }: { searchParams: { ok?: string; err?: string } }) {
+export default async function Exams(props: { searchParams: Promise<{ ok?: string; err?: string }> }) {
+  const searchParams = await props.searchParams;
   const targets = await all<any>(`
     SELECT DISTINCT ON (v.course_id, m.module_key) v.course_id, c.title AS course, m.module_key, m.title, m.format
       FROM modules m JOIN course_versions v ON v.id=m.version_id JOIN courses c ON c.id=v.course_id

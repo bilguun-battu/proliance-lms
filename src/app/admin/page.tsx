@@ -7,7 +7,8 @@ import RateBar from '@/components/RateBar';
 import { courseProgress } from '@/lib/progress';
 import { fmtDateTime, fmtSession, ACTION_LABEL } from '@/lib/format';
 
-export default async function AdminHome({ searchParams }: { searchParams: { aud?: string } }) {
+export default async function AdminHome(props: { searchParams: Promise<{ aud?: string }> }) {
+  const searchParams = await props.searchParams;
   const aud = audOf(searchParams.aud);
   const A = AUD_DB(aud);
   const courses = await all<any>(`

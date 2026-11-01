@@ -1,11 +1,11 @@
 'use client';
 import Link from 'next/link';
-import { useFormState } from 'react-dom';
+import { useActionState } from 'react';
 import { loginAction } from '../actions/auth';
 import Submit from '@/components/Submit';
 
 export default function LoginForm({ ok, next }: { ok: boolean; next?: string }) {
-  const [state, action] = useFormState(loginAction, {});
+  const [state, action] = useActionState(loginAction, {});
   return (
     <form action={action} className="stack">
       {ok && <div className="alert ok">Нууц үг шинэчлэгдлээ. Нэвтэрнэ үү.</div>}

@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic';
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 // Гэрчилгээний жинхэнэ эсэхийг нэвтрэхгүйгээр шалгана (QR код)
-export default async function Verify({ params }: { params: { number: string } }) {
+export default async function Verify(props: { params: Promise<{ number: string }> }) {
+  const params = await props.params;
   const c = await one<Certificate>('SELECT * FROM certificates WHERE number=$1', [decodeURIComponent(params.number)]);
   const st = c ? certState(c) : null;
   return (

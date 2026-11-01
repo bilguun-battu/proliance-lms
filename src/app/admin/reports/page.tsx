@@ -9,7 +9,10 @@ import { fmtDateTime, fmtDate, ACTION_LABEL } from '@/lib/format';
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export default async function Reports({ searchParams }: { searchParams: { course?: string; org?: string; from?: string; to?: string; aud?: string; kind?: string } }) {
+export default async function Reports(
+  props: { searchParams: Promise<{ course?: string; org?: string; from?: string; to?: string; aud?: string; kind?: string }> }
+) {
+  let searchParams = await props.searchParams;
   const aud = audOf(searchParams.aud);
   searchParams = { ...searchParams, aud };
   const courses = await all<any>('SELECT id, title FROM courses WHERE audience=$1 ORDER BY title', [aud === 'internal' ? 'INTERNAL' : 'CUSTOMER']);

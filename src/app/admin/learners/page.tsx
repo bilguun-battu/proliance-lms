@@ -5,7 +5,10 @@ import { Flash, Chip } from '@/components/ui';
 import { ROLE_LABEL, fmtDate } from '@/lib/format';
 import Submit from '@/components/Submit';
 
-export default async function Learners({ searchParams }: { searchParams: { ok?: string; err?: string; org?: string; aud?: string } }) {
+export default async function Learners(
+  props: { searchParams: Promise<{ ok?: string; err?: string; org?: string; aud?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const aud = searchParams.aud === 'internal' ? 'internal' : searchParams.aud === 'customer' ? 'customer' : undefined;
   const orgs = await all<any>('SELECT id, name FROM orgs ORDER BY name');
   const users = await all<any>(`

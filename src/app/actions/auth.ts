@@ -22,7 +22,7 @@ export async function loginAction(_: FormState, fd: FormData): Promise<FormState
 }
 
 export async function logoutAction() {
-  destroySession();
+  await destroySession();
   redirect('/login');
 }
 

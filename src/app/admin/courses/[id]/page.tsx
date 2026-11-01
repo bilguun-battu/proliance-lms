@@ -11,7 +11,11 @@ import Submit from '@/components/Submit';
 
 const CHANGE: Record<string, [string, string]> = { NEW: ['Шинэ', 'info'], CHANGED: ['Өөрчлөгдсөн', 'warn'], SAME: ['', ''] };
 
-export default async function CourseAdmin({ params, searchParams }: { params: { id: string }; searchParams: { ok?: string; err?: string } }) {
+export default async function CourseAdmin(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; err?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const c = await one<any>('SELECT * FROM courses WHERE id=$1', [params.id]);
   if (!c) notFound();
   const products = await all<any>('SELECT p.id, p.code, p.name, EXISTS (SELECT 1 FROM course_products cp WHERE cp.course_id=$1 AND cp.product_id=p.id) AS on FROM products p ORDER BY p.code', [c.id]);

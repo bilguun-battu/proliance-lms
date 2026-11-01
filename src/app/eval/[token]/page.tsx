@@ -23,7 +23,8 @@ function Frame({ children, name }: { children: React.ReactNode; name?: string })
   );
 }
 
-export default async function EvalPage({ params }: { params: { token: string } }) {
+export default async function EvalPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const u = await getSession();
   if (!u) redirect(`/login?next=${encodeURIComponent(`/eval/${params.token}`)}`);
   const r = await evalRunByToken(params.token);
