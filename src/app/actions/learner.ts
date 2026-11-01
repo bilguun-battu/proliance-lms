@@ -40,34 +40,4 @@ export async function markRead(courseId: string, key: string) {
   revalidatePath(`/portal/courses/${courseId}/m/${key}`);
 }
 
-/* ---------------- Хичээлд бүртгүүлэх ---------------- */
-export async function registerSession(sessionId: string): Promise<{ error?: string; ok?: string }> {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
-  const s = await one<any>(`SELECT s.*, c.title FROM sessions s JOIN courses c ON c.id=s.course_id WHERE s.id=$1`, [sessionId]);
-  if (!s || s.status !== 'SCHEDULED' || new Date(s.starts_at) < new Date()) return { error: 'Энэ хичээлд бүртгүүлэх боломжгүй.' };
-  if (!(await canAccessCourse(u.id, s.course_id))) return { error: 'Эрхгүй.' };
-  const taken = (await one<{ n: number }>(`SELECT count(*)::int AS n FROM session_attendees WHERE session_id=$1`, [sessionId]))!.n;
-  if (taken >= s.seats) return { error: 'Суудал дүүрсэн байна. Өөр хуваарь сонгоно уу.' };
-  // Нэг модульд нэг л ирэх хуваарьт бүртгэлтэй байна: өмнөхийг цуцална
-  await run(`DELETE FROM session_attendees a USING sessions x
-              WHERE a.session_id=x.id AND a.user_id=$1 AND x.course_id=$2 AND x.module_key=$3 AND a.status='REGISTERED' AND x.starts_at > now()`,
-    [u.id, s.course_id, s.module_key]);
-  await run(`INSERT INTO session_attendees (session_id,user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [sessionId, u.id]);
-  const when = fmtSession(s.starts_at);
-  await logActivity(u.id, s.course_id, s.module_key, 'REGISTER', `${when} · ${s.location}`);
-  const me = await one<any>('SELECT email FROM users WHERE id=$1', [u.id]);
-  await sendEmail(me.email, `Бүртгэл баталгаажлаа: ${s.title}`,
-    `Сайн байна уу, ${u.name}.\n\nТа ${when}-д болох хичээлд бүртгүүллээ.\nБайршил: ${s.location}${s.link ? `\nХолбоос: ${s.link}` : ''}\n\nХичээлээс 1 өдрийн өмнө сануулга илгээнэ.`);
-  revalidatePath(`/portal/courses/${s.course_id}`);
-  return { ok: `${when}-д бүртгэгдлээ.` };
-}
-
-export async function unregisterSession(sessionId: string): Promise<{ error?: string; ok?: string }> {
-  const u = await requireUser('LEARNER', 'COORDINATOR');
-  const s = await one<any>('SELECT * FROM sessions WHERE id=$1', [sessionId]);
-  if (!s || new Date(s.starts_at) < new Date()) return { error: 'Эхэлсэн хичээлийн бүртгэлийг цуцлах боломжгүй.' };
-  const r = await run(`DELETE FROM session_attendees WHERE session_id=$1 AND user_id=$2 AND status='REGISTERED'`, [sessionId, u.id]);
-  if (r.rowCount) await logActivity(u.id, s.course_id, s.module_key, 'UNREGISTER', fmtSession(s.starts_at));
-  revalidatePath(`/portal/courses/${s.course_id}`);
-  return { ok: 'Бүртгэл цуцлагдлаа.' };
-}
+/* Хуваарьт бүртгүүлэх: src/app/actions/offerings.ts (enrollSelf, dropSelf) */

@@ -2,6 +2,7 @@ import Shell from '@/components/Shell';
 import { requireUser } from '@/lib/auth';
 import { one } from '@/lib/db';
 import { learnerCourseIds, courseProgress } from '@/lib/progress';
+import { isInstructor, pendingAttendance } from '@/lib/teach';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ export default async function PortalLayout({ children }: { children: React.React
     { href: '/portal/notifications', label: 'Мэдэгдэл', badge: unread },
     { href: '/portal/profile', label: 'Миний профайл', badge: 0 },
   ];
+  if (await isInstructor(user.id)) tabs.splice(2, 0, { href: '/portal/teach', label: 'Заах хуваарь', badge: await pendingAttendance(user.id) });
   const quals = (await one<{ n: number }>('SELECT count(*)::int AS n FROM trainer_quals WHERE user_id=$1', [user.id]))!.n;
   if (quals) {
     const pending = (await one<{ n: number }>(`SELECT count(*)::int AS n FROM practical_records r JOIN trainer_quals q ON q.course_id=r.course_id AND q.user_id=$1

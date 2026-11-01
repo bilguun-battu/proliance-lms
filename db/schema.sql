@@ -509,3 +509,66 @@ CREATE UNIQUE INDEX IF NOT EXISTS exam_attempts_run_user_no ON exam_attempts(run
 
 -- Сургалтын нүүр зураг (суралцагчийн картанд)
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS cover_file uuid REFERENCES files(id) ON DELETE SET NULL;
+
+-- ===== Хуваарьт сургалт (offering): нэг хуваарь олон хичээлийн цагтай, бүртгэл хуваарь бүхэлдээ =====
+CREATE TABLE IF NOT EXISTS offerings (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  num                serial,
+  course_id          uuid NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  instructor_id      uuid REFERENCES users(id) ON DELETE SET NULL,   -- үндсэн сургагч багш
+  instructor_name    text,                                            -- гадны багш (системд бүртгэлгүй)
+  location           text NOT NULL DEFAULT '',
+  link               text,
+  min_capacity       int  NOT NULL DEFAULT 0,
+  max_capacity       int  NOT NULL DEFAULT 12,
+  waitlist_capacity  int  NOT NULL DEFAULT 10,
+  auto_waitlist      boolean NOT NULL DEFAULT true,                   -- суудал чөлөөлөгдвөл хүлээлгээс автоматаар бүртгэх
+  enroll_deadline    timestamptz,
+  drop_deadline      timestamptz,
+  status             text NOT NULL DEFAULT 'SCHEDULED',               -- SCHEDULED / CANCELLED
+  notes              text NOT NULL DEFAULT '',
+  created_at         timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS offerings_course_idx ON offerings(course_id);
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS offering_id uuid REFERENCES offerings(id) ON DELETE CASCADE;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_id uuid REFERENCES users(id) ON DELETE SET NULL;
+
+-- Бүртгэл: ENROLLED (бүртгэгдсэн) / WAITLISTED (хүлээлгийн жагсаалт) / DROPPED (цуцалсан) / COMPLETED (дүүргэсэн) / UNSUCCESSFUL (амжилтгүй)
+CREATE TABLE IF NOT EXISTS offering_enrollments (
+  offering_id    uuid NOT NULL REFERENCES offerings(id) ON DELETE CASCADE,
+  user_id        uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status         text NOT NULL DEFAULT 'ENROLLED',
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  enrolled_at    timestamptz,
+  waitlisted_at  timestamptz,
+  dropped_at     timestamptz,
+  completed_at   timestamptz,
+  grade          text,          -- PASS / FAIL
+  score          numeric,
+  note           text,
+  enrolled_by    uuid REFERENCES users(id) ON DELETE SET NULL,
+  PRIMARY KEY (offering_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS offering_enrollments_user_idx ON offering_enrollments(user_id, status);
+
+-- Ирц: Ирсэн / Хэсэгчлэн ирсэн / Ирээгүй
+ALTER TABLE session_attendees DROP CONSTRAINT IF EXISTS session_attendees_status_check;
+ALTER TABLE session_attendees ADD CONSTRAINT session_attendees_status_check CHECK (status IN ('REGISTERED','ATTENDED','PARTIAL','ABSENT'));
+
+-- Хуучин (модуль тус бүрийн) хуваарийг тус бүрд нь хуваарьт сургалт болгоно
+DO $$
+DECLARE s record; oid uuid;
+BEGIN
+  FOR s IN SELECT * FROM sessions WHERE offering_id IS NULL ORDER BY starts_at LOOP
+    INSERT INTO offerings (course_id, instructor_id, instructor_name, location, link, max_capacity, waitlist_capacity, enroll_deadline, drop_deadline, status, notes, created_at)
+      VALUES (s.course_id, (SELECT u.id FROM users u WHERE s.instructor IS NOT NULL AND s.instructor LIKE u.name || '%' LIMIT 1),
+              s.instructor, s.location, s.link, s.seats, 0, s.starts_at, s.starts_at - interval '1 day', s.status, s.notes, s.created_at)
+      RETURNING id INTO oid;
+    UPDATE sessions SET offering_id=oid WHERE id=s.id;
+    INSERT INTO offering_enrollments (offering_id, user_id, status, enrolled_at, completed_at)
+      SELECT oid, a.user_id, CASE WHEN a.status='ATTENDED' THEN 'COMPLETED' ELSE 'ENROLLED' END, a.registered_at,
+             CASE WHEN a.status='ATTENDED' THEN a.marked_at END
+        FROM session_attendees a WHERE a.session_id=s.id
+      ON CONFLICT DO NOTHING;
+  END LOOP;
+END $$;

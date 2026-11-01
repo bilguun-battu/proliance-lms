@@ -8,6 +8,8 @@ import { fmtDate, fmtDuration } from '@/lib/format';
 import { complianceRows, COMP_LABEL, COMPLIANT_SET } from '@/lib/compliance';
 import CourseCover from '@/components/CourseCover';
 import LearnFrame from '@/components/LearnFrame';
+import OfferingPicker from '@/components/OfferingPicker';
+import { learnerOfferings } from '@/lib/offerings';
 
 export default async function CoursePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -22,6 +24,8 @@ export default async function CoursePage(props: { params: Promise<{ id: string }
   const updated = p.version.number > 1 && p.modules.some(m => m.state === 'retake' || m.state === 'newmod' || m.state === 'recommended');
   const mins = p.modules.reduce((t, m) => t + (m.duration_min || 0), 0);
   const req = p.modules.filter(m => REQUIRED.includes(m.state));
+  const ilt = p.modules.some(m => m.format === 'INPERSON' || m.format === 'ONLINE');
+  const offerings = ilt ? await learnerOfferings(u.id, c.id) : [];
   return (
     <LearnFrame course={c} modules={p.modules} current={null}>
       <div className="lhero">
@@ -53,6 +57,11 @@ export default async function CoursePage(props: { params: Promise<{ id: string }
               {!m.unlocked && <div className="small muted">Өмнөх модулиа дуусгасны дараа нээгдэнэ.</div>}</div>
           </Link>))}</div>
       </section>
+      {ilt && <section className="lsec" id="offerings">
+        <h2>Хуваарь</h2>
+        <p className="small muted">Танхимын болон онлайн шууд хичээлд хуваарь сонгож бүртгүүлнэ. Суудал дүүрсэн бол хүлээлгийн жагсаалтад орно.</p>
+        <OfferingPicker offerings={offerings} />
+      </section>}
       {versions.length > 1 && <section className="lsec">
         <h2>Хувилбарын түүх</h2>
         {versions.map(v => <div key={v.number} className={`ver ${v.number === p.version.number ? 'cur' : ''}`}>

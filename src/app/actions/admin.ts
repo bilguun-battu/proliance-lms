@@ -379,53 +379,7 @@ export async function publishDraft(fd: FormData) {
   go(`/admin/courses/${courseId}`, d.number > 1 ? `${d.number}-р хувилбар нийтлэгдэж, ${sent} суралцагчид мэдэгдэл илгээгдлээ.` : 'Сургалт нийтлэгдлээ.');
 }
 
-/* ---------------- Хуваарь ба ирц ---------------- */
-export async function createSession(fd: FormData) {
-  await requireUser('ADMIN');
-  const courseId = s(fd, 'course_id'), key = s(fd, 'module_key'), date = s(fd, 'date'), time = s(fd, 'time');
-  if (!courseId || !key || !date || !time) go('/admin/sessions', 'Сургалт, модуль, огноо, цагийг бөглөнө үү.', true);
-  const m = await one<any>(`SELECT m.format FROM modules m JOIN course_versions v ON v.id=m.version_id
-     WHERE v.course_id=$1 AND v.status='PUBLISHED' AND m.module_key=$2 ORDER BY v.number DESC LIMIT 1`, [courseId, key]);
-  if (!m || !['INPERSON', 'ONLINE'].includes(m.format)) go('/admin/sessions', 'Зөвхөн танхимын эсвэл онлайн шууд модульд хуваарь гаргана.', true);
-  if (m.format === 'ONLINE' && !s(fd, 'link')) go('/admin/sessions', 'Онлайн хичээлийн холбоосыг оруулна уу.', true);
-  await run(`INSERT INTO sessions (course_id,module_key,starts_at,duration_min,location,link,instructor,seats,notes)
-             VALUES ($1,$2,($3 || ' ' || $4 || '+08')::timestamptz,$5,$6,$7,$8,$9,$10)`,
-    [courseId, key, date, time, Number(s(fd, 'duration_min')) || 60, s(fd, 'location') || (m.format === 'ONLINE' ? 'Онлайн' : ''),
-     s(fd, 'link') || null, s(fd, 'instructor') || null, Math.max(1, Number(s(fd, 'seats')) || 10), s(fd, 'notes')]);
-  go('/admin/sessions', 'Хуваарь нэмэгдлээ.');
-}
-
-export async function cancelSession(fd: FormData) {
-  await requireUser('ADMIN');
-  const id = s(fd, 'session_id');
-  const sess = await one<any>(`SELECT s.*, c.title FROM sessions s JOIN courses c ON c.id=s.course_id WHERE s.id=$1`, [id]);
-  if (!sess) go('/admin/sessions', 'Хуваарь олдсонгүй.', true);
-  await run(`UPDATE sessions SET status='CANCELLED' WHERE id=$1`, [id]);
-  const people = await all<any>(`SELECT u.id, u.email, u.phone, u.name FROM session_attendees a JOIN users u ON u.id=a.user_id WHERE a.session_id=$1 AND a.status='REGISTERED'`, [id]);
-  const when = fmtSession(sess.starts_at);
-  for (const p of people) {
-    const title = `Хичээл цуцлагдлаа: ${sess.title}`;
-    const body = `${when}-д болох байсан хичээл цуцлагдлаа. Өөр хуваарьт бүртгүүлнэ үү.`;
-    await sendEmail(p.email, title, `Сайн байна уу, ${p.name}.\n\n${body}\n\n${appUrl(`/portal/courses/${sess.course_id}`)}`);
-    const sms = await sendSms(p.phone, `Proliance: ${body}`);
-    await run(`INSERT INTO notifications (user_id,course_id,kind,title,body,email_status,sms_status) VALUES ($1,$2,'SESSION',$3,$4,'sent',$5)`, [p.id, sess.course_id, title, body, sms]);
-  }
-  go('/admin/sessions', `Хуваарь цуцлагдаж, ${people.length} хүнд мэдэгдэл очлоо.`);
-}
-
-export async function markAttendance(fd: FormData) {
-  await requireUser('ADMIN');
-  const sessionId = s(fd, 'session_id'), status = s(fd, 'status') === 'ABSENT' ? 'ABSENT' : 'ATTENDED';
-  const users = fd.getAll('user_id').map(String);
-  const sess = await one<any>('SELECT * FROM sessions WHERE id=$1', [sessionId]);
-  if (!sess) go('/admin/sessions', 'Хуваарь олдсонгүй.', true);
-  for (const uid of users) {
-    await run('UPDATE session_attendees SET status=$1, marked_at=now() WHERE session_id=$2 AND user_id=$3', [status, sessionId, uid]);
-    if (status === 'ATTENDED') await completeByAttendance(uid, sess.course_id, sess.module_key);
-    else await logActivity(uid, sess.course_id, sess.module_key, 'ABSENT');
-  }
-  go(`/admin/sessions?open=${sessionId}`, status === 'ATTENDED' ? `${users.length} хүний ирц батлагдлаа.` : 'Ирээгүй гэж тэмдэглэгдлээ.');
-}
+/* Хуваарь, бүртгэл, ирц: src/app/actions/offerings.ts */
 
 /* ---------------- Заавал хамрагдах сургалтын оноолт ---------------- */
 export async function createAssignment(fd: FormData) {

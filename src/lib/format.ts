@@ -52,6 +52,10 @@ export const ACTION_LABEL: Record<string, string> = {
   PDF: 'Гарын авлага нээсэн',
   REGISTER: 'Хичээлд бүртгүүлсэн',
   UNREGISTER: 'Бүртгэл цуцалсан',
+  WAITLIST: 'Хүлээлгийн жагсаалтад орсон',
+  PARTIAL: 'Хичээлд хэсэгчлэн ирсэн',
+  OFFERING_DONE: 'Хуваарьт сургалтыг дүүргэсэн',
+  OFFERING_FAIL: 'Хуваарьт сургалт амжилтгүй',
   ATTEND: 'Хичээлд ирсэн',
   ABSENT: 'Хичээлд ирээгүй',
   EXAM_START: 'Шалгалт эхэлсэн',
@@ -69,4 +73,14 @@ export function fmtDuration(min: number) {
   if (!min) return '';
   const h = Math.floor(min / 60), m = min % 60;
   return h ? `${h} цаг${m ? ` ${m} мин` : ''}` : `${m} минут`;
+}
+
+// Огноо (YYYY-MM-DD) ба цаг (HH:MM) Улаанбаатарын цагаар: маягтын утга, хуанлид
+export function ymd(d: string | Date) {
+  const p = parts(d);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+export function hm(d: string | Date) {
+  const p = parts(d);
+  return `${p.hour}:${p.minute}`;
 }

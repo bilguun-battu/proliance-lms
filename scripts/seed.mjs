@@ -355,5 +355,37 @@ for (const r of done.rows) {
     [number, r.user_id, r.course_id, r.title, r.category, r.name, r.org, pos.position ?? null, pos.department ?? null, ar.n > 0, r.at, rec]);
 }
 
+// Хуваарьт сургалт (offering): дээрх хичээлүүдийг хуваарь болгож, жишээ бүртгэл, хүлээлгийн жагсаалт үүсгэнэ
+await db.query(fs.readFileSync(path.join(process.cwd(), 'db', 'schema.sql'), 'utf8').split('-- Хуучин (модуль тус бүрийн) хуваарийг')[1].replace(/^[^\n]*\n/, ''));
+const uid = async email => (await db.query('SELECT id FROM users WHERE email=$1', [email])).rows[0]?.id;
+const ganb = await uid('ganbaatar@proliance.mn');
+// Гематологийн сургалт: танхимын дадлага ба онлайн хичээлийг нэг хуваарьт нэгтгэнэ, багш Ганбаатар
+const hs = (await db.query(`SELECT s.id, s.offering_id, s.module_key, s.starts_at FROM sessions s WHERE s.course_id=$1 ORDER BY s.starts_at`, [c1])).rows;
+const firstM3 = hs.find(x => x.module_key === 'm3'), m4 = hs.find(x => x.module_key === 'm4');
+if (firstM3 && m4) {
+  await db.query(`UPDATE sessions SET offering_id=$1, starts_at=$2::timestamptz + interval '1 day 5 hours' WHERE id=$3`, [firstM3.offering_id, firstM3.starts_at, m4.id]);
+  await db.query('DELETE FROM offerings WHERE id=$1', [m4.offering_id]);
+}
+await db.query(`UPDATE offerings SET instructor_id=$1, instructor_name=NULL, waitlist_capacity=5, drop_deadline=(SELECT min(starts_at) FROM sessions s WHERE s.offering_id=offerings.id) - interval '2 days'
+   WHERE course_id=$2`, [ganb, c1]);
+await db.query(`UPDATE offerings SET waitlist_capacity=5 WHERE waitlist_capacity=0`);
+const enrollSeed = async (offeringId, email, status) => {
+  const u = await uid(email);
+  await db.query(`INSERT INTO offering_enrollments (offering_id,user_id,status,enrolled_at,waitlisted_at) VALUES ($1,$2,$3,CASE WHEN $3='ENROLLED' THEN now() END, CASE WHEN $3='WAITLISTED' THEN now() END) ON CONFLICT DO NOTHING`, [offeringId, u, status]);
+  if (status === 'ENROLLED') await db.query(`INSERT INTO session_attendees (session_id,user_id) SELECT id, $2 FROM sessions WHERE offering_id=$1 ON CONFLICT DO NOTHING`, [offeringId, u]);
+};
+if (firstM3) {
+  await enrollSeed(firstM3.offering_id, 'enkhjin@example.mn', 'ENROLLED');
+  await enrollSeed(firstM3.offering_id, 'temuulen@example.mn', 'ENROLLED');
+}
+// Анхны тусламж: суудал 2, дүүрсэн тул нэг ажилтан хүлээлгийн жагсаалтад
+const fa = (await db.query('SELECT id FROM offerings WHERE course_id=$1 LIMIT 1', [firstAid])).rows[0];
+if (fa) {
+  await db.query('UPDATE offerings SET max_capacity=2, waitlist_capacity=3 WHERE id=$1', [fa.id]);
+  await enrollSeed(fa.id, 'munkhzul@proliance.mn', 'ENROLLED');
+  await enrollSeed(fa.id, 'baterdene@proliance.mn', 'ENROLLED');
+  await enrollSeed(fa.id, 'tuguldur@proliance.mn', 'WAITLISTED');
+}
+
 console.log('Жишээ өгөгдөл орлоо. Жишээ хэрэглэгчдийн нууц үг: Test1234!');
 await db.end();

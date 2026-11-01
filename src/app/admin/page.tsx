@@ -31,7 +31,7 @@ export default async function AdminHome(props: { searchParams: Promise<{ aud?: s
     if (p.key === 'update') attention.push({ name: l.name, org: l.org, course: c.title, left: p.left, cid: c.id });
   }
   const upcoming = await all<any>(`
-    SELECT s.id, s.starts_at, s.seats, s.location, c.title AS course,
+    SELECT s.id, s.offering_id, s.starts_at, (SELECT o.max_capacity FROM offerings o WHERE o.id=s.offering_id) AS seats, s.location, c.title AS course,
       (SELECT m.title FROM modules m JOIN course_versions v ON v.id=m.version_id WHERE v.course_id=s.course_id AND m.module_key=s.module_key ORDER BY v.number DESC LIMIT 1) AS module,
       (SELECT count(*)::int FROM session_attendees a WHERE a.session_id=s.id) AS taken
       FROM sessions s JOIN courses c ON c.id=s.course_id WHERE c.audience=$1 AND s.status='SCHEDULED' AND s.starts_at > now() ORDER BY s.starts_at LIMIT 5`, [A]);
@@ -75,11 +75,11 @@ export default async function AdminHome(props: { searchParams: Promise<{ aud?: s
       </section>}
       <section className="panel">
         <div className="head"><h2>Ойрын хичээл</h2><Link className="link small" href={`/admin/sessions?aud=${aud}`}>Бүх хуваарь</Link></div>
-        {pendingAtt > 0 && <div className="alert err">Өнгөрсөн хичээлүүдэд {pendingAtt} хүний ирц батлагдаагүй байна. <Link className="link" href="/admin/sessions?show=past">Ирц батлах</Link></div>}
+        {pendingAtt > 0 && <div className="alert err">Өнгөрсөн хичээлүүдэд {pendingAtt} хүний ирц батлагдаагүй байна. <Link className="link" href={`/admin/sessions?show=past&aud=${aud}`}>Ирц бүртгэх</Link></div>}
         {upcoming.length ? <div className="list" style={{ boxShadow: 'none', border: '1px solid var(--line)' }}>{upcoming.map(s => (
-          <div key={s.id} className="row"><div><strong className="num">{fmtSession(s.starts_at)}</strong> · {s.module}
+          <Link key={s.id} href={`/admin/sessions/${s.offering_id}#s-${s.id}`} className="row"><div><strong className="num">{fmtSession(s.starts_at)}</strong> · {s.module}
             <div className="meta"><span>{s.course}</span><span>{s.location}</span></div></div>
-            <div className="acts"><span className="chip c-brand">{s.taken}/{s.seats}</span></div></div>))}</div>
+            <div className="acts"><span className="chip c-brand">{s.taken}/{s.seats}</span></div></Link>))}</div>
           : <p className="muted">Ирэх хичээл алга.</p>}
       </section>
       <div className="grid2">

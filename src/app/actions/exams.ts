@@ -205,11 +205,24 @@ export async function deleteBand(fd: FormData) {
   go(`/admin/exams/${examId}?tab=bands`, 'Онооны шатлал устгагдлаа.');
 }
 
+// Шалгалт эхлүүлэх, хаах эрх: админ эсвэл тухайн хичээлийн сургагч багш
+async function runManager(sessionId: string | null) {
+  const u = await requireUser('ADMIN', 'LEARNER', 'COORDINATOR');
+  if (u.role === 'ADMIN') return { u, live: '/admin/exams/live' };
+  const sess = sessionId ? await one<any>('SELECT offering_id FROM sessions WHERE id=$1', [sessionId]) : null;
+  const { canManageOffering } = await import('@/lib/offerings');
+  if (!sess?.offering_id || !(await canManageOffering(u, sess.offering_id))) redirect('/portal');
+  return { u, live: '/portal/teach/exam' };
+}
+async function runSession(runId: string) {
+  return (await one<{ session_id: string | null }>('SELECT session_id FROM exam_runs WHERE id=$1', [runId]))?.session_id ?? null;
+}
+
 /* ---------------- Шалгалт эхлүүлэх / хаах ---------------- */
 export async function openExamRun(fd: FormData) {
-  await requireUser('ADMIN');
   const examId = s(fd, 'exam_id'), sessionId = s(fd, 'session_id') || null;
-  const back = sessionId ? '/admin/sessions' : `/admin/exams/${examId}`;
+  const { u, live } = await runManager(sessionId);
+  const back = sessionId ? (u.role === 'ADMIN' ? '/admin/sessions' : '/portal/teach') : `/admin/exams/${examId}`;
   const exam = await one<any>('SELECT * FROM exams WHERE id=$1', [examId]);
   if (!exam) go(back, 'Шалгалт олдсонгүй.', true);
   if (exam.status === 'HIDDEN') go(back, 'Шалгалт "Нуусан" төлөвтэй байна. Тохиргооноос идэвхжүүлнэ үү.', true);
@@ -219,24 +232,24 @@ export async function openExamRun(fd: FormData) {
   const openMin = Number(s(fd, 'open_min')) || (exam.duration_min > 0 ? exam.duration_min + 15 : 180);
   const r = await one<{ id: string }>(`INSERT INTO exam_runs (exam_id,session_id,token,closes_at) VALUES ($1,$2,$3,now() + ($4 || ' minutes')::interval) RETURNING id`,
     [examId, sessionId, newToken(), String(openMin)]);
-  redirect(`/admin/exams/live/${r!.id}`);
+  redirect(`${live}/${r!.id}`);
 }
 
 export async function closeExamRun(fd: FormData) {
-  await requireUser('ADMIN');
   const id = s(fd, 'run_id');
+  const { live } = await runManager(await runSession(id));
   await run('UPDATE exam_runs SET closed_at=now() WHERE id=$1 AND closed_at IS NULL', [id]);
   // Эхэлсэн боловч илгээгээгүй оролцогчдын хариултыг одоо байгаагаар нь дүгнэнэ
   const open = await all<any>('SELECT id FROM exam_attempts WHERE run_id=$1 AND submitted_at IS NULL', [id]);
   for (const a of open) await gradeAttempt(a.id, null);
-  go(`/admin/exams/live/${id}`, 'Шалгалт дууслаа. Холбоос идэвхгүй боллоо.');
+  go(`${live}/${id}`, 'Шалгалт дууслаа. Холбоос идэвхгүй боллоо.');
 }
 
 export async function extendExamRun(fd: FormData) {
-  await requireUser('ADMIN');
   const id = s(fd, 'run_id');
+  const { live } = await runManager(await runSession(id));
   await run(`UPDATE exam_runs SET closes_at = greatest(closes_at, now()) + interval '10 minutes' WHERE id=$1 AND closed_at IS NULL`, [id]);
-  go(`/admin/exams/live/${id}`, 'Хугацаа 10 минутаар сунгагдлаа.');
+  go(`${live}/${id}`, 'Хугацаа 10 минутаар сунгагдлаа.');
 }
 
 /* ---------------- Багш гараар шалгах ---------------- */

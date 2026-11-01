@@ -4,7 +4,8 @@ import { requireUser } from '@/lib/auth';
 import { all, one } from '@/lib/db';
 import { canAccessCourse, courseProgress, requirementStatus, logActivity, FORMAT_LABEL } from '@/lib/progress';
 import { fmtSession } from '@/lib/format';
-import SessionPicker from '@/components/SessionPicker';
+import OfferingPicker from '@/components/OfferingPicker';
+import { learnerOfferings } from '@/lib/offerings';
 import { StateChip } from '@/components/ui';
 import VideoPlayer from '@/components/VideoPlayer';
 import Quiz from '@/components/Quiz';
@@ -41,10 +42,7 @@ export default async function ModulePage(
   const recs = practical ? await all<any>(`SELECT r.*, a.name AS assessor FROM practical_records r LEFT JOIN users a ON a.id=r.assessor_id
      WHERE r.user_id=$1 AND r.course_id=$2 AND r.module_key=$3 ORDER BY r.created_at DESC`, [u.id, c.id, m.module_key]) : [];
   const openRec = recs.find(x => ['IN_PROGRESS', 'SUBMITTED', 'REQUESTED'].includes(x.status) && x.mver === m.mver) ?? null;
-  const sessions = !scheduled ? [] : await all<any>(`
-    SELECT s.*, (SELECT count(*)::int FROM session_attendees a WHERE a.session_id=s.id) AS taken,
-           EXISTS (SELECT 1 FROM session_attendees a WHERE a.session_id=s.id AND a.user_id=$3) AS mine
-      FROM sessions s WHERE s.course_id=$1 AND s.module_key=$2 AND s.status='SCHEDULED' AND s.starts_at > now() ORDER BY s.starts_at`, [c.id, m.module_key, u.id]);
+  const offerings = scheduled ? await learnerOfferings(u.id, c.id, m.module_key) : [];
   const history = !scheduled ? [] : await all<any>(`
     SELECT s.starts_at, a.status FROM session_attendees a JOIN sessions s ON s.id=a.session_id
      WHERE a.user_id=$1 AND s.course_id=$2 AND s.module_key=$3 AND s.starts_at <= now() ORDER BY s.starts_at DESC LIMIT 3`, [u.id, c.id, m.module_key]);
@@ -58,12 +56,11 @@ export default async function ModulePage(
       {practical && <PracticalLearner kind={m.format as 'OJT' | 'VOC'} courseId={c.id} moduleKey={m.module_key} items={items} open={openRec}
         history={recs.filter(x => ['COMPETENT', 'NYC'].includes(x.status))} done={m.state === 'done'} />}
       {scheduled && <section className="panel">
-        <h2>{FORMAT_LABEL[m.format]} хичээлийн хуваарь</h2>
-        {m.state === 'done'
-          ? <p className="muted">Та энэ хичээлд хамрагдсан байна.</p>
-          : <><p className="small muted">{m.format === 'ONLINE' ? 'Тохирох цагаа сонгон бүртгүүлнэ үү. Онлайн хичээлийн холбоос бүртгүүлсний дараа энд харагдана.' : 'Тохирох цагаа сонгон бүртгүүлнэ үү.'} Хичээлээс 1 өдрийн өмнө сануулга очно. Ирц батлагдахад модуль дууссанд тооцогдоно.</p>
-            <SessionPicker showLink={m.format === 'ONLINE'} sessions={sessions.map(s => ({ id: s.id, when: fmtSession(s.starts_at), location: s.location, link: s.mine ? s.link : null, instructor: s.instructor, left: s.seats - s.taken, mine: s.mine }))} /></>}
-        {history.length > 0 && <div className="small muted">Өмнөх бүртгэл: {history.map(h => `${fmtSession(h.starts_at)} — ${h.status === 'ATTENDED' ? 'ирсэн' : h.status === 'ABSENT' ? 'ирээгүй' : 'бүртгүүлсэн'}`).join('; ')}</div>}
+        <h2>Хуваарь сонгох</h2>
+        {m.state === 'done' && <p className="muted" style={{ margin: 0 }}>Та энэ хичээлд хамрагдсан байна.</p>}
+        {m.state !== 'done' && <p className="small muted" style={{ margin: 0 }}>Хуваарьт бүхэлд нь бүртгүүлнэ: тухайн хуваарийн бүх хичээлийн цагт хамрагдана. Суудал дүүрсэн бол хүлээлгийн жагсаалтад орж, суудал гармагц автоматаар бүртгэгдэнэ. Хичээл бүрээс 1 өдрийн өмнө сануулга очно.</p>}
+        {(m.state !== 'done' || offerings.some(o => o.my)) && <OfferingPicker offerings={offerings} />}
+        {history.length > 0 && <div className="small muted">Өмнөх ирц: {history.map(h => `${fmtSession(h.starts_at)} — ${h.status === 'ATTENDED' ? 'ирсэн' : h.status === 'PARTIAL' ? 'хэсэгчлэн ирсэн' : h.status === 'ABSENT' ? 'ирээгүй' : 'бүртгүүлсэн'}`).join('; ')}</div>}
       </section>}
       {m.video_file && <section className="panel"><VideoPlayer src={`${base}/api/files/${m.video_file}`} courseId={c.id} moduleKey={m.module_key} start={r.position} initialPct={r.videoPct} /></section>}
       {m.pdf_file && <section className="panel">
