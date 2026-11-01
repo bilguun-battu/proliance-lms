@@ -6,3 +6,4 @@ uploads
 next-env.d.ts
 .pgdata
 .env.bak
+.pgpass.tmp

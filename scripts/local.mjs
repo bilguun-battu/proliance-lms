@@ -41,39 +41,83 @@ async function canConnect(url) {
   catch (e) { await c.end().catch(() => {}); return { ok: false, code: e.code }; }
 }
 
-let pgServer = null;
-async function startEmbedded(url) {
-  const u = new URL(url);
-  let EmbeddedPostgres;
+// Суулгацгүй PostgreSQL: npm-ээр ирсэн PostgreSQL програмыг (@embedded-postgres/<платформ>) шууд ажиллуулна
+let pgProc = null;
+let pgBin = null;
+async function binaries() {
+  const plat = process.platform === 'win32' ? 'windows' : process.platform;
   try {
-    ({ default: EmbeddedPostgres } = await import('embedded-postgres'));
+    return (await import(`@embedded-postgres/${plat}-${process.arch}`));
   } catch {
-    console.error('✖ embedded-postgres олдсонгүй. "npm install" дахин ажиллуулна уу.');
+    console.error(`✖ Энэ компьютерт (${process.platform}-${process.arch}) тохирох суулгацгүй PostgreSQL олдсонгүй. "npm install" дахин ажиллуулах эсвэл PostgreSQL суулгаад .env-д DATABASE_URL тохируулна уу.`);
     process.exit(1);
   }
-  const dir = path.join(root, '.pgdata');
-  const fresh = !fs.existsSync(path.join(dir, 'PG_VERSION'));
-  pgServer = new EmbeddedPostgres({
-    databaseDir: dir,
-    port: Number(u.port || 5439),
-    user: decodeURIComponent(u.username || 'postgres'),
-    password: decodeURIComponent(u.password || 'postgres'),
-    persistent: true,
-    initdbFlags: ['--encoding=UTF8', '--no-locale', '--lc-messages=C'],
-    createPostgresUser: process.platform === 'linux' && process.getuid?.() === 0,
-    onLog: () => {},
-    onError: m => { const s = String(m?.message ?? m); if (/error|fatal/i.test(s)) console.error(s.trim()); },
+}
+
+function exec(file, args) {
+  return new Promise(resolve => {
+    const p = spawn(file, args, { cwd: root, env: { ...process.env, LC_MESSAGES: 'C' }, windowsHide: true });
+    let out = '';
+    p.stdout.on('data', d => (out += d));
+    p.stderr.on('data', d => (out += d));
+    p.on('error', e => resolve({ code: -1, out: out + String(e) }));
+    p.on('exit', code => resolve({ code, out }));
   });
-  if (fresh) {
-    console.log('Суулгацгүй PostgreSQL-ийг анх удаа бэлтгэж байна (.pgdata)…');
-    await pgServer.initialise();
+}
+
+async function startEmbedded(url) {
+  if (process.platform !== 'win32' && process.getuid?.() === 0) {
+    console.error('✖ PostgreSQL-ийг root хэрэглэгчээр ажиллуулах боломжгүй. Энгийн хэрэглэгчээр "npm run local" ажиллуулна уу.');
+    process.exit(1);
   }
-  await pgServer.start();
-  console.log(`PostgreSQL асав: 127.0.0.1:${u.port || 5439}`);
+  const u = new URL(url);
+  pgBin = await binaries();
+  const dir = path.join(root, '.pgdata');
+  if (!fs.existsSync(path.join(dir, 'PG_VERSION'))) {
+    console.log('Суулгацгүй PostgreSQL-ийг анх удаа бэлтгэж байна (.pgdata)…');
+    fs.rmSync(dir, { recursive: true, force: true });
+    const pwfile = path.join(root, '.pgpass.tmp');
+    fs.writeFileSync(pwfile, decodeURIComponent(u.password || 'postgres') + '\n');
+    const r = await exec(pgBin.initdb, ['-D', dir, '-U', decodeURIComponent(u.username || 'postgres'), `--pwfile=${pwfile}`,
+      '--auth=scram-sha-256', '--encoding=UTF8', '--no-locale', '--lc-messages=C']);
+    fs.rmSync(pwfile, { force: true });
+    if (r.code !== 0) {
+      console.error(r.out);
+      throw new Error('PostgreSQL-ийг бэлтгэж чадсангүй (дээрх мессежийг харна уу).');
+    }
+  }
+  const port = u.port || '5439';
+  await new Promise((resolve, reject) => {
+    pgProc = spawn(pgBin.postgres, ['-D', dir, '-p', port, '-c', 'listen_addresses=127.0.0.1', '-c', 'unix_socket_directories='],
+      { cwd: root, env: { ...process.env, LC_MESSAGES: 'C' }, windowsHide: true });
+    let log = '';
+    const onData = d => {
+      log += d;
+      if (log.includes('ready to accept connections')) resolve();
+    };
+    pgProc.stdout.on('data', onData);
+    pgProc.stderr.on('data', onData);
+    pgProc.on('exit', code => {
+      pgProc = null;
+      if (!log.includes('ready to accept connections')) {
+        console.error(log.trim());
+        reject(new Error(/already in use|Address already/i.test(log)
+          ? `${port} порт эзлэгдсэн байна. Өөр "npm run local" ажиллаж байгаа эсэхийг шалгана уу.`
+          : `PostgreSQL асаж чадсангүй (код ${code}).`));
+      }
+    });
+  });
+  console.log(`PostgreSQL асав: 127.0.0.1:${port}`);
 }
 
 async function stop() {
-  if (pgServer) { await pgServer.stop().catch(() => {}); pgServer = null; }
+  if (!pgProc) return;
+  const p = pgProc;
+  pgProc = null;
+  const done = new Promise(r => p.once('exit', r));
+  if (process.platform === 'win32') await exec(pgBin.pg_ctl, ['-D', path.join(root, '.pgdata'), 'stop', '-m', 'fast']);
+  else p.kill('SIGINT');
+  await Promise.race([done, new Promise(r => setTimeout(r, 10000))]);
 }
 
 async function main() {
@@ -106,14 +150,15 @@ async function main() {
   const port = new URL(appUrl).port || '3000';
   console.log(`\n✔ Бэлэн: ${appUrl}\n  Админ: ${env.ADMIN_EMAIL || 'admin@proliance.mn'} / ${env.ADMIN_PASSWORD || 'Proliance2026!'}${noSeed ? '' : '\n  Жишээ хэрэглэгчид: нууц үг Test1234! (README-г харна уу)'}\n  Зогсоох: Ctrl+C\n`);
   const app = spawn(process.execPath, [next, prod ? 'start' : 'dev', '-p', port], { stdio: 'inherit', cwd: root, env: { ...process.env, ...(prod ? { NODE_ENV: 'production' } : {}) } });
-  const shutdown = async () => { app.kill(); await stop(); process.exit(0); };
+  let stopping = false;
+  const shutdown = async () => { if (stopping) return; stopping = true; app.kill(); await stop(); process.exit(0); };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
   app.on('exit', async code => { await stop(); process.exit(code ?? 0); });
 }
 
 main().catch(async e => {
-  console.error('\n✖ ' + (e.message || e));
+  console.error('\n✖ ' + ((e && e.message) || String(e)));
   await stop();
   process.exit(1);
 });
