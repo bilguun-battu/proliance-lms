@@ -1,8 +1,10 @@
 // Өгөгдлийн сан бэлэн болтол хүлээнэ (Docker, Codespaces эхлэхэд)
 import pg from 'pg';
 import { loadEnv } from './env.mjs';
+import { requireUrl } from './db-util.mjs';
 
 loadEnv();
+requireUrl();
 for (let i = 1; i <= 60; i++) {
   const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
   try {

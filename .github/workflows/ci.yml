@@ -50,6 +50,36 @@ jobs:
       - if: failure()
         run: cat server.log || true
 
+  local:
+    name: npm run local (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Компьютер дээр ажиллуулах (PostgreSQL суулгалгүй)
+        shell: bash
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+        run: |
+          node scripts/local.mjs > local.log 2>&1 &
+          ok=0
+          for i in $(seq 1 120); do
+            if curl -sf -o /dev/null http://localhost:3000/login; then ok=1; break; fi
+            sleep 3
+          done
+          cat local.log
+          test "$ok" = "1"
+          curl -sf http://localhost:3000/login | grep -q "Нэвтрэх"
+          echo "npm run local зөв ажиллаж байна."
+
   docker:
     name: Docker image (ghcr.io)
     needs: test

@@ -177,26 +177,55 @@ docker compose up -d      # GitHub-д бүтээгдсэн бэлэн image-ий
 
 Видео, PDF, тест солиход модуль автоматаар "өөрчлөгдсөн" гэж тэмдэглэгдэнэ. Админ үүнийг гараар буцааж болно. Биечлэн/онлайн модуль "өөрчлөгдсөн, заавал" болбол өмнө ирсэн хүмүүс шинэ хуваарьт дахин бүртгүүлнэ.
 
-## Суулгах
+## Компьютер дээрээ ажиллуулах (localhost)
+
+Шаардлагатай: **Node.js 20 эсвэл түүнээс дээш** (https://nodejs.org). PostgreSQL суулгах **шаардлагагүй**. Windows, macOS, Linux дээр адилхан.
 
 ```bash
-# 1. Хамаарал суулгах
+git clone https://github.com/bilguun-battu/proliance-lms.git
+cd proliance-lms
 npm install
-
-# 2. Тохиргоо
-cp .env.example .env      # утгуудыг засна (DATABASE_URL, AUTH_SECRET, APP_URL, SMTP, SMS)
-
-# 3. PostgreSQL дээр хоосон өгөгдлийн сан үүсгээд хүснэгтүүдийг үүсгэх
-npm run db:migrate
-
-# 4. Анхны админ (+ жишээ өгөгдөл)
-npm run db:seed                 # админ + жишээ өгөгдөл
-npm run db:seed -- --admin-only # зөвхөн админ (бодит ашиглалтад)
-
-# 5. Ажиллуулах
-npm run build
-npm start                       # http://localhost:3000
+npm run local
 ```
+
+`npm run local` дараахыг өөрөө хийнэ:
+
+1. `.env` байхгүй бол үүсгэнэ (санамсаргүй нууц түлхүүртэй).
+2. Суулгацгүй PostgreSQL-ийг (`.pgdata` хавтаст) асаана. Компьютерт PostgreSQL суусан, `.env`-д зөв тохируулсан бол түүнийг ашиглана.
+3. Хүснэгтүүдийг үүсгэж, админ болон жишээ өгөгдөл оруулна.
+4. Системийг http://localhost:3000 дээр асаана. Зогсоох: `Ctrl+C` (өгөгдлийн сан хамт зогсоно, өгөгдөл хадгалагдана).
+
+Бусад сонголт:
+
+| Команд | Юу хийх |
+|--------|---------|
+| `npm run local` | Хөгжүүлэлтийн горимоор асаана (кодыг өөрчлөхөд шууд шинэчлэгдэнэ) |
+| `npm run local:prod` | Бүтээж, production горимоор асаана (хурдан) |
+| `npm run local -- --no-seed` | Жишээ өгөгдөлгүй, зөвхөн админтай |
+| `npm run setup` | Зөвхөн `.env` үүсгэнэ |
+
+Эхнээс нь дахин эхлүүлэх бол системийг зогсоогоод `.pgdata` хавтас болон `.env` файлыг устгаад `npm run local` ажиллуулна.
+
+### Өөрийн PostgreSQL-ээр (заавал биш)
+
+```bash
+npm install
+npm run setup -- --own-postgres   # .env үүсгэнэ; DATABASE_URL-ийг өөрийн PostgreSQL-ээр засна
+npm run db:migrate                # өгөгдлийн сан байхгүй бол өөрөө үүсгэнэ
+npm run db:seed                   # админ + жишээ өгөгдөл (зөвхөн админ: npm run db:seed -- --admin-only)
+npm run build
+npm start                         # http://localhost:3000
+```
+
+Түгээмэл алдаа:
+
+| Алдаа | Шалтгаан, засах |
+|-------|------------------|
+| `ECONNREFUSED ...:5432` | PostgreSQL ажиллахгүй байна. `npm run local` ашиглана. |
+| `password authentication failed` | `.env` доторх DATABASE_URL-ийн хэрэглэгч, нууц үг буруу. |
+| Нэвтэрсний дараа дахин нэвтрэх хуудас гарна | `APP_URL` https хаягтай байна. Компьютер дээр `http://localhost:3000` байх ёстой (`npm run local` өөрөө засна). |
+| `Node.js ... хуучин байна` | Node.js 20+ суулгана. |
+| `Port 3000 is in use` | 3000 портыг өөр програм эзэлсэн. Түүнийг хаах эсвэл `.env`-д `APP_URL=http://localhost:3001`. |
 
 Жишээ өгөгдөлтэй бол дараах эрхээр туршина:
 

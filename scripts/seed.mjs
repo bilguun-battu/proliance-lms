@@ -5,11 +5,15 @@ import path from 'node:path';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import { loadEnv } from './env.mjs';
+import { connect } from './db-util.mjs';
 
 loadEnv();
 const adminOnly = process.argv.includes('--admin-only');
-const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
-await db.connect();
+const db = await connect();
+if (!(await db.query(`SELECT to_regclass('public.users') AS t`)).rows[0].t) {
+  console.error('\n✖ Хүснэгтүүд үүсээгүй байна. Эхлээд "npm run db:migrate" ажиллуулна уу.\n');
+  process.exit(1);
+}
 const one = async (q, p) => (await db.query(q, p)).rows[0];
 
 const email = (process.env.ADMIN_EMAIL || 'admin@proliance.mn').toLowerCase();
