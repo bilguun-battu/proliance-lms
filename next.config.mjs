@@ -3,7 +3,7 @@
 const nextConfig = {
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
   agentRules: false,
-  serverExternalPackages: ['pg', 'exceljs', 'nodemailer', 'bcryptjs'],
+  serverExternalPackages: ['pg', 'exceljs', 'nodemailer', 'bcryptjs', 'pdfjs-dist'],
   experimental: {
     serverActions: {
       bodySizeLimit: '20mb',

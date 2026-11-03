@@ -15,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Сургалтын админ зөвхөн өөрийн хэсгүүдэд нэвтэрнэ
   if (ta && !TRAINING_ADMIN_PATHS.some(p => path === p || path.startsWith(p + '/'))) redirect('/admin/sessions');
   const pending = (await one<{ n: number }>(`SELECT count(*)::int AS n FROM practical_records WHERE status IN ('SUBMITTED','REQUESTED')`))!.n;
+  const kbOpen = (await one<{ n: number }>(`SELECT count(*)::int AS n FROM kb_questions WHERE NOT resolved AND (NOT answered OR helpful = false)`))!.n;
   const all = [
     { href: '/admin', label: 'Тойм', exact: true },
     { href: '/admin/courses', label: 'Сургалт' },
@@ -25,6 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/exams', label: 'Шалгалт' },
     { href: '/admin/evaluations', label: 'Үнэлгээ' },
     { href: '/admin/assess', label: 'OJT / VoC', badge: pending },
+    { href: '/admin/kb', label: 'Сургалтын туслах', badge: kbOpen },
     { href: '/admin/trainers', label: 'Сургагч багш' },
     { href: '/admin/orgs', label: 'Байгууллага' },
     { href: '/admin/learners', label: 'Хэрэглэгч' },

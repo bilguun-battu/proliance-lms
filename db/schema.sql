@@ -593,3 +593,44 @@ CREATE TABLE IF NOT EXISTS pdf_progress (
 -- Эрх: Сургагч (TRAINER) — багшийн үйлдэл; Сургалтын админ (TRAINING_ADMIN) — хуваарь, багш оноох, шалгалт/үнэлгээний материал, хамтрагч байгууллагын заавал сургалт
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN','TRAINING_ADMIN','TRAINER','COORDINATOR','LEARNER'));
+
+-- Сургалтын туслах (асуулт-хариулт): материалаас хайж хариулна, гадны үйлчилгээ ашиглахгүй.
+-- kb_chunks: нийтлэгдсэн хувилбарын PDF, модуль, сургалтын тайлбараас задалсан хэсгүүд
+CREATE TABLE IF NOT EXISTS kb_chunks (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id   uuid NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  version_id  uuid NOT NULL REFERENCES course_versions(id) ON DELETE CASCADE,
+  module_key  text,
+  source      text NOT NULL CHECK (source IN ('COURSE','MODULE','PDF')),
+  doc_title   text NOT NULL DEFAULT '',
+  heading     text NOT NULL DEFAULT '',
+  page        int,
+  text        text NOT NULL,
+  stems       text[] NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS kb_chunks_course ON kb_chunks(course_id);
+-- Админы бэлтгэсэн асуулт-хариулт (сургалтад хамаарах эсвэл ерөнхий)
+CREATE TABLE IF NOT EXISTS kb_faq (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id   uuid REFERENCES courses(id) ON DELETE CASCADE,
+  question    text NOT NULL,
+  answer      text NOT NULL,
+  stems       text[] NOT NULL DEFAULT '{}',
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+-- Асуултын бүртгэл: хариулт олдоогүй, тус болоогүй асуултыг админ харж материалаа сайжруулна
+CREATE TABLE IF NOT EXISTS kb_questions (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid REFERENCES users(id) ON DELETE SET NULL,
+  course_id   uuid REFERENCES courses(id) ON DELETE SET NULL,
+  question    text NOT NULL,
+  answered    boolean NOT NULL,
+  confidence  real NOT NULL DEFAULT 0,
+  top_source  text,
+  helpful     boolean,
+  faq_id      uuid REFERENCES kb_faq(id) ON DELETE SET NULL,
+  resolved    boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS kb_questions_created ON kb_questions(created_at DESC);

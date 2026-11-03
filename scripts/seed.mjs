@@ -55,9 +55,16 @@ function samplePdf(title) {
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 let pdfN = 0;
+// Сургалтын туслахыг турших жишээ гарын авлага (db/demo); бусад модульд хоосон жишээ PDF
+const DEMO_PDF = {
+  'Биологийн аюулгүй байдал': 'hem-safety.pdf', 'Өдөр тутмын ашиглалт, чанарын хяналт': 'hem-daily.pdf',
+  'Цэвэрлэх, ариутгах журам': 'endo-clean.pdf', 'Найруулах, хэрэглэх': 'des-mix.pdf', 'Хадгалах, аюулгүй ажиллагаа': 'des-store.pdf',
+};
+const demoDir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'db', 'demo');
 async function addPdf(title) {
   const name = `sample-${++pdfN}.pdf`;
-  const buf = samplePdf(`module ${pdfN}`);
+  const demo = DEMO_PDF[title] && path.join(demoDir, DEMO_PDF[title]);
+  const buf = demo && fs.existsSync(demo) ? fs.readFileSync(demo) : samplePdf(`module ${pdfN}`);
   fs.writeFileSync(path.join(uploadDir, name), buf);
   return (await one('INSERT INTO files (name,mime,size,path) VALUES ($1,$2,$3,$4) RETURNING id', [`${title}.pdf`, 'application/pdf', buf.length, name])).id;
 }
@@ -388,5 +395,14 @@ if (fa) {
   await enrollSeed(fa.id, 'tuguldur@proliance.mn', 'WAITLISTED');
 }
 
+// Сургалтын туслахын бэлтгэсэн асуулт-хариулт (материал сервер асахад автоматаар индекслэгдэнэ)
+{
+  const stem = t => t.toLowerCase().replace(/ё/g, 'е').replace(/[^0-9a-zа-яөү]+/g, ' ').trim().split(' ').filter(w => w.length > 1).map(w => w.slice(0, 5));
+  const hem = (await one(`SELECT id FROM courses WHERE title='Гематологийн анализаторын ашиглалт'`))?.id ?? null;
+  for (const [cid, q, a] of [
+    [null, 'Инженерт хэрхэн хандах вэ?', 'Тоног төхөөрөмжийн алдаа шийдэгдэхгүй бол Proliance-ийн инженерийн утас 7000-0000 руу ажлын цагаар залгана. Яаралтай үед эмнэлгийн нэр, төхөөрөмжийн серийн дугаар, дэлгэцэн дээрх алдааны мэдээллийг хэлнэ үү.'],
+    [hem, 'Урвалжийг хаанаас захиалах вэ?', 'Урвалж, хэрэглэгдэхүүнийг Proliance-ийн борлуулалтын менежерээр дамжуулан захиална. Урвалжийн багцын дугаар, хугацааг хүлээн авахдаа шалгаж бүртгэнэ үү.'],
+  ]) await db.query('INSERT INTO kb_faq (course_id,question,answer,stems) VALUES ($1,$2,$3,$4)', [cid, q, a, stem(`${q} ${q} ${a}`)]);
+}
 console.log('Жишээ өгөгдөл орлоо. Жишээ хэрэглэгчдийн нууц үг: Test1234!');
 await db.end();

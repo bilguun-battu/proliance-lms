@@ -10,6 +10,7 @@ import { completeByAttendance, logActivity, CATEGORIES, CATEGORY_FORMATS, CATEGO
 import { fmtSession } from '@/lib/format';
 import { setUserPosition, startPositionHistory } from '@/lib/positions';
 import { parseVideoUrl } from '@/lib/video';
+import { reindexCourse } from '@/lib/kb';
 
 const s = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim();
 const fmt = (v: string) => (['INPERSON', 'ONLINE', 'OJT', 'VOC'].includes(v) ? v : 'ELEARN');
@@ -430,6 +431,8 @@ export async function publishDraft(fd: FormData) {
     const removed = prevMods.filter((p: any) => !mods.some(m => m.module_key === p.module_key)).map((p: any) => p.title);
     await run(`UPDATE course_versions SET status='PUBLISHED', published_at=now(), removed=$1 WHERE id=$2`, [JSON.stringify(removed), d.id], c);
   });
+  // Сургалтын туслах шинэ хувилбарын материалаас хайна
+  await reindexCourse(courseId).catch(() => {});
   const sent = d.number > 1 ? await notifyNewVersion(courseId, d.number) : 0;
   go(`/admin/courses/${courseId}`, d.number > 1 ? `${d.number}-р хувилбар нийтлэгдэж, ${sent} суралцагчид мэдэгдэл илгээгдлээ.` : 'Сургалт нийтлэгдлээ.');
 }

@@ -33,6 +33,7 @@ export default function LearnFrame({ course, modules, current, children }: {
             ? <Link href={href(m)} aria-current={m.module_key === current ? 'page' : undefined}>{inner}</Link>
             : <span className="lnav-lock" title="Өмнөх модулиа дуусгасны дараа нээгдэнэ">{inner}</span>}</li>;
         })}</ol>
+        <Link className="lside-ask" href={`/portal/ask?course=${course.id}`}>💬 Энэ сургалтаас асуулт асуух</Link>
       </aside>
       <div className="lmain">
         <div className="lcontent">{children}</div>

@@ -64,6 +64,12 @@ export default function PdfViewer({ fileId, courseId, moduleKey, track, initialS
           el.appendChild(num);
           root.appendChild(el); els.push(el);
         }
+        // ?page=N: туслахын эх сурвалжийн холбоосоор тухайн хуудас руу шууд очно
+        const want = Number(new URLSearchParams(window.location.search).get('page'));
+        if (want > 1 && want <= n) requestAnimationFrame(() => {
+          root.scrollTop = els[want - 1].offsetTop - els[0].offsetTop;
+          root.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        });
         const render = async (i: number) => {
           if (rendered.has(i)) return;
           rendered.add(i);

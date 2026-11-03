@@ -14,6 +14,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const tabs = [
     { href: '/portal', label: 'Миний сургалт', badge: required, exact: false },
     { href: '/portal/schedule', label: 'Миний хуваарь', badge: 0 },
+    { href: '/portal/ask', label: 'Асуулт асуух', badge: 0 },
     { href: '/portal/notifications', label: 'Мэдэгдэл', badge: unread },
     { href: '/portal/profile', label: 'Миний профайл', badge: 0 },
   ];
