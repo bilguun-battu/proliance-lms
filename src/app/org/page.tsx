@@ -29,7 +29,8 @@ export default async function OrgHome(props: { searchParams: Promise<{ ok?: stri
     <>
       <div className="head">
         <div><h1>{org?.name}</h1><p className="muted">{people.length} ажилтан · {needUpdate} сургалт дутуу</p></div>
-        <a className="btn ghost" href={`${base}/api/reports/export`}>Excel татах</a>
+        <div className="acts"><Link className="btn" href="/org/requests/new">Сургалтын хүсэлт илгээх</Link>
+          <a className="btn ghost" href={`${base}/api/reports/export`}>Excel татах</a></div>
       </div>
       <Flash sp={searchParams} />
       <section className="panel">
@@ -56,9 +57,10 @@ export default async function OrgHome(props: { searchParams: Promise<{ ok?: stri
       {comp.length > 0 && <section className="panel">
         <div className="head"><h2>Заавал хамрагдах сургалт</h2><RateBar value={rate(comp)} /></div>
         <div className="tablewrap"><table>
-          <thead><tr><th>Ажилтан</th><th>Сургалт</th><th>Төлөв</th><th>Хугацаа</th></tr></thead>
+          <thead><tr><th>Ажилтан</th><th>Сургалт</th><th>Төлөв</th><th>Хугацаа</th><th></th></tr></thead>
           <tbody>{comp.map((r, i) => <tr key={i}><td>{r.name}</td><td>{r.course}</td><td><Chip label={COMP_LABEL[r.status][0]} tone={COMP_LABEL[r.status][1]} /></td>
-            <td className="small num">{COMPLIANT_SET.includes(r.status) ? (r.validUntil ? `${fmtDate(r.validUntil)} хүртэл` : 'Дууссан') : fmtDate(r.due)}</td></tr>)}</tbody>
+            <td className="small num">{COMPLIANT_SET.includes(r.status) ? (r.validUntil ? `${fmtDate(r.validUntil)} хүртэл` : 'Дууссан') : fmtDate(r.due)}</td>
+            <td>{['EXPIRED', 'EXPIRING', 'OVERDUE', 'DUE_SOON'].includes(r.status) && <Link className="link small" href={`/org/requests/new?kind=RETRAIN&course=${r.course_id}&user=${r.user_id}`}>Давтан сургалт хүсэх</Link>}</td></tr>)}</tbody>
         </table></div>
       </section>}
       <section className="panel">

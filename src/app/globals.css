@@ -345,3 +345,26 @@ ul.tl-list { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 .ask-ex .btn { white-space: normal; text-align: left; }
 .ask-in textarea { min-height: 52px; }
 .panel .ask-form { background: var(--surface); }
+
+/* Сургалтын хүсэлт */
+.rq-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.rq-kind { display: grid; gap: 4px; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; position: relative; }
+.rq-kind input { position: absolute; opacity: 0; pointer-events: none; }
+.rq-kind.on { border-color: var(--brand); background: var(--soft); }
+.rq-kind:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
+.rq-staff { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; max-height: 360px; overflow: auto; }
+.rq-person { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; }
+.rq-person:has(input:checked) { border-color: var(--brand); background: var(--soft); }
+.rq-person > span { display: grid; min-width: 0; }
+.rq-person input { margin-top: 4px; accent-color: var(--brand); }
+.rq-new { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.rq-new .fld { flex: 1 1 180px; }
+.rq-thread { display: grid; gap: 10px; }
+.rq-msg { max-width: min(640px, 92%); padding: 10px 14px; border-radius: 14px; background: var(--sunk); display: grid; gap: 2px; }
+.rq-msg.me { justify-self: end; background: var(--fg); color: #fff; }
+.rq-msg.me .muted { color: rgba(255,255,255,.7); }
+.rq-msg.sys { justify-self: center; background: transparent; border: 1px dashed var(--line); font-size: .87rem; text-align: center; }
+.rq-msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rq-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 18px; margin: 0; }
+.rq-facts dt { font-size: .8rem; color: var(--muted); font-weight: 600; }
+.rq-facts dd { margin: 0; }

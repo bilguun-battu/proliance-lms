@@ -634,3 +634,48 @@ CREATE TABLE IF NOT EXISTS kb_questions (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS kb_questions_created ON kb_questions(created_at DESC);
+
+-- Харилцагч байгууллагын сургалтын хүсэлт (шинэ ажилтан, давтан сургалт, нэмэлт сургалт)
+CREATE TABLE IF NOT EXISTS training_requests (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  num             serial,
+  org_id          uuid NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  requested_by    uuid REFERENCES users(id) ON DELETE SET NULL,
+  kind            text NOT NULL CHECK (kind IN ('NEW_STAFF','RETRAIN','ADDITIONAL','OTHER')),
+  course_id       uuid REFERENCES courses(id) ON DELETE SET NULL,
+  topic           text NOT NULL DEFAULT '',
+  format          text NOT NULL DEFAULT 'ANY' CHECK (format IN ('ANY','INPERSON','ONSITE','ONLINE')),
+  preferred_from  date,
+  preferred_to    date,
+  note            text NOT NULL DEFAULT '',
+  status          text NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW','IN_REVIEW','SCHEDULED','DONE','REJECTED','CANCELLED')),
+  offering_id     uuid REFERENCES offerings(id) ON DELETE SET NULL,
+  handled_by      uuid REFERENCES users(id) ON DELETE SET NULL,
+  last_org_at     timestamptz NOT NULL DEFAULT now(),
+  last_admin_at   timestamptz,
+  org_seen_at     timestamptz,
+  admin_seen_at   timestamptz,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS training_requests_org ON training_requests(org_id, created_at DESC);
+-- Хүсэлтэд хамрагдах хүмүүс: системд бүртгэлтэй ажилтан эсвэл шинээр орох хүн (бүртгэл үүсгэхэд user_id холбогдоно)
+CREATE TABLE IF NOT EXISTS training_request_people (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id  uuid NOT NULL REFERENCES training_requests(id) ON DELETE CASCADE,
+  user_id     uuid REFERENCES users(id) ON DELETE SET NULL,
+  name        text NOT NULL,
+  position    text,
+  email       text,
+  phone       text
+);
+-- Хүсэлтийн харилцаа: хариуцагч ба Proliance-ийн бичсэн мессеж, төлөв өөрчлөлт
+CREATE TABLE IF NOT EXISTS training_request_messages (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id  uuid NOT NULL REFERENCES training_requests(id) ON DELETE CASCADE,
+  user_id     uuid REFERENCES users(id) ON DELETE SET NULL,
+  side        text NOT NULL CHECK (side IN ('ORG','PROLIANCE','SYSTEM')),
+  body        text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS training_request_messages_req ON training_request_messages(request_id, created_at);

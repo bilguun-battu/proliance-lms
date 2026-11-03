@@ -19,6 +19,7 @@ export default async function Notifications() {
             <div className="meta"><span>{fmtDateTime(n.created_at)}</span>{n.due_at && <span>Хугацаа: {fmtDate(n.due_at)}</span>}</div>
           </div>
           {n.course_id && <div className="acts"><Link className="btn sm" href={`/portal/courses/${n.course_id}`}>Сургалт руу очих</Link></div>}
+          {n.kind === 'REQUEST' && u.role === 'COORDINATOR' && <div className="acts"><Link className="btn sm" href="/org/requests">Хүсэлт рүү очих</Link></div>}
         </div>))}</div>
         : <div className="list"><div className="empty">Мэдэгдэл алга.</div></div>}
     </>

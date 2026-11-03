@@ -4,6 +4,7 @@ import Shell from '@/components/Shell';
 import { requireUser, STAFF_ROLES, TRAINING_ADMIN_PATHS } from '@/lib/auth';
 import { one } from '@/lib/db';
 import { isInstructor } from '@/lib/teach';
+import { adminOpen } from '@/lib/requests';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const all = [
     { href: '/admin', label: 'Тойм', exact: true },
     { href: '/admin/courses', label: 'Сургалт' },
+    { href: '/admin/requests', label: 'Сургалтын хүсэлт', badge: await adminOpen() },
     { href: '/admin/assignments', label: 'Заавал сургалт оноох' },
     { href: '/admin/compliance', label: 'Заавал сургалтын тайлан' },
     { href: '/admin/matrix', label: 'Сургалтын матриц' },

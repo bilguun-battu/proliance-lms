@@ -12,7 +12,7 @@ export const PORTAL_ROLES: Role[] = ['LEARNER', 'COORDINATOR', 'TRAINER', 'TRAIN
 export const STAFF_ROLES: Role[] = ['ADMIN', 'TRAINING_ADMIN'];
 export const isStaff = (role: string) => role === 'ADMIN' || role === 'TRAINING_ADMIN';
 // Сургалтын админд нээлттэй админ хэсгүүд
-export const TRAINING_ADMIN_PATHS = ['/admin/sessions', '/admin/exams', '/admin/evaluations', '/admin/assignments', '/admin/compliance', '/admin/assess', '/admin/kb'];
+export const TRAINING_ADMIN_PATHS = ['/admin/sessions', '/admin/exams', '/admin/evaluations', '/admin/assignments', '/admin/compliance', '/admin/assess', '/admin/kb', '/admin/requests'];
 export type SessionUser = { id: string; name: string; email: string; role: Role; orgId: string | null };
 
 export const COOKIE = 'pl_session';
